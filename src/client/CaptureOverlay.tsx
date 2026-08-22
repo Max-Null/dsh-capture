@@ -1,15 +1,13 @@
 /**
- * CaptureOverlay: 纯 DSH（浏览器模式）的全屏截图遮罩。
+ * CaptureOverlay: 纯 DSH（浏览器模式）的页面截图遮罩。
  *
- * 与壳层浮层（shell/screenshot.html）同一套交互：左键拖拽框选 → 双击/回车
- * 进入标注（红框强调）→ 回车/「完成」交付；右键/Esc 逐级回退（撤当前框 →
- * 撤已画框 → 回框选 → 退出）。
+ * 微信式单阶段交互（与壳层浮层 screenshot.html 同一套）：
+ *   左键拖拽框选 → 选区定格（工具条出现）→ 同一全屏画面上任意位置拖拽画
+ *   红框强调（合成时按选区裁剪）→ 回车/「完成」一次确认交付；
+ *   右键/Esc 逐级回退（画框中 → 撤框 → 重选 → 退出）。
  *
- * 坐标口径：**全部交互状态存「帧物理坐标」**（拖拽时经 wrap 显示尺寸实时
- * 换算），渲染时再换算回显示像素绘制——同一套数据既驱动选区 CSS 也驱动
- * 最终 canvas 合成，避免两套坐标漂移。
- *
- * 通过 createPortal 挂到 document.body（由 ScreenshotButton 渲染）。
+ * 坐标口径：全部交互状态存「帧物理坐标」（拖拽时经 wrap 显示尺寸实时换算），
+ * 渲染时换算回显示像素绘制；最终合成：裁剪选区 + 红框 clip 叠加。
  */
 import { createElement, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -40,11 +38,12 @@ const CSS = [
   '.ssd3ov-tip{position:fixed;top:24px;left:50%;transform:translateX(-50%);padding:8px 20px;border-radius:18px;background:rgba(10,14,20,.78);color:#E1F5FE;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;pointer-events:none;white-space:nowrap;z-index:1}',
   '.ssd3ov-tip em{font-style:normal;color:#4FC3F7}',
   '.ssd3ov-tip em.red{color:#FF5B4D}',
-  '.ssd3ov-panel{position:fixed;right:20px;top:20px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:rgba(10,14,20,.82);z-index:1}',
-  '.ssd3ov-btn{padding:5px 12px;border:none;border-radius:14px;background:rgba(255,255,255,.12);color:#E1F5FE;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;cursor:pointer}',
-  '.ssd3ov-btn:hover{background:rgba(255,255,255,.2)}',
-  '.ssd3ov-btn-done{padding:5px 16px;background:#2E6BE6;color:#fff}',
-  '.ssd3ov-btn-done:hover{background:#3B78F5}',
+  '.ssd3ov-toolbar{position:absolute;display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(26,32,42,.94);box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:2}',
+  '.ssd3ov-tool{display:grid;place-items:center;width:30px;height:30px;border:none;border-radius:7px;background:transparent;color:#C7D3E3;cursor:pointer}',
+  '.ssd3ov-tool:hover{background:rgba(255,255,255,.12);color:#fff}',
+  '.ssd3ov-sep{width:1px;height:20px;background:rgba(255,255,255,.18)}',
+  '.ssd3ov-done{padding:5px 16px;border:none;border-radius:14px;background:#2E6BE6;color:#fff;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;cursor:pointer}',
+  '.ssd3ov-done:hover{background:#3B78F5}',
 ].join('\n')
 
 const STYLE_ID = '@max-null/dsh-ssid-screenshot/overlay.css'
@@ -69,7 +68,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-/** 视口内容适配尺寸（≤96vw/≤94vh 等比缩放，contains）。 */
 function fitSize(w: number, h: number): { w: number, h: number } {
   const availW = window.innerWidth * 0.96
   const availH = window.innerHeight * 0.94
@@ -77,27 +75,42 @@ function fitSize(w: number, h: number): { w: number, h: number } {
   return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) }
 }
 
-/** 浏览器截图遮罩（框选 + 标注 + 交付）。 */
+const ICON_BOX = 'M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Zm1.2.8v7.4c0 .17.13.3.3.3h7.4c.17 0 .3-.13.3-.3V4.3c0-.17-.13-.3-.3-.3H3.5c-.17 0-.3.13-.3.3Z'
+const ICON_UNDO = 'M6.7 3.2 3.2 6.7l3.5 3.5M3.6 6.7h6.1a3.1 3.1 0 0 1 0 6.2H8.3'
+const ICON_REDO_SEL = 'M3 5.5A2.5 2.5 0 0 1 5.5 3h5A2.5 2.5 0 0 1 13 5.5v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 3 10.5v-5Z'
+
+function icon(iconPath: string, color: string, flip = false): ReactNode {
+  return createElement('svg', {
+    viewBox: '0 0 16 16', width: '15', height: '15', fill: 'none', 'aria-hidden': true,
+    style: flip ? { transform: 'scaleX(-1)' } : undefined,
+  }, createElement('path', {
+    d: iconPath,
+    stroke: color === 'none' ? 'none' : 'currentColor',
+    fill: color === 'none' ? 'none' : color,
+    strokeWidth: '1.4',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  }))
+}
+
+/** 浏览器截图遮罩：框选 + 单阶段红框标注 + 交付。 */
 export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   const { dataUrl, width, height, onDone, onCancel } = props
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  const annoCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const annoOrigin = useRef<Point | null>(null)
+  const annoRef = useRef<HTMLCanvasElement | null>(null)
 
-  const [phase, setPhase] = useState<'select' | 'annotate'>('select')
-  /** 帧的显示尺寸（select 用整屏帧、annotate 用裁剪图，各自计算）。 */
+  const [phase, setPhase] = useState<'select' | 'tool'>('select')
   const [showSize, setShowSize] = useState<{ w: number, h: number } | null>(null)
-  const [cropUrl, setCropUrl] = useState<string | null>(null)
-  const [selPhys, setSelPhys] = useState<Rect | null>(null)
-  const [dragStart, setDragStart] = useState<Point | null>(null)
+  const [sel, setSel] = useState<Rect | null>(null)
   const [annoRects, setAnnoRects] = useState<Rect[]>([])
   const [annoDraft, setAnnoDraft] = useState<Rect | null>(null)
+  const [undoStack, setUndoStack] = useState<string[]>([])
 
-  // 事件处理器只绑定一次：全部活状态经 ref 镜像读取。
-  const live = useRef({ phase, selPhys, dragStart, annoRects, annoDraft, cropUrl, showSize })
-  live.current = { phase, selPhys, dragStart, annoRects, annoDraft, cropUrl, showSize }
+  const live = useRef({ phase, sel, annoRects, annoDraft, showSize })
+  live.current = { phase, sel, annoRects, annoDraft, showSize }
+  const dragStart = useRef<{ phys: Point | null, moved: boolean } | null>(null)
+  const annoStart = useRef<Point | null>(null)
 
-  /** 显示坐标 → 帧物理坐标。 */
   const toPhys = useCallback((clientX: number, clientY: number): Point | null => {
     const wrap = wrapRef.current
     if (wrap === null) return null
@@ -109,57 +122,57 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     }
   }, [width, height])
 
-  const cropAndEnterAnnotate = useCallback(async (): Promise<void> => {
-    const s = live.current
-    if (s.selPhys === null || s.selPhys.w < 2 || s.selPhys.h < 2) return
-    const image = await loadImage(dataUrl)
-    const canvas = document.createElement('canvas')
-    canvas.width = s.selPhys.w
-    canvas.height = s.selPhys.h
-    canvas.getContext('2d')!.drawImage(image, s.selPhys.x, s.selPhys.y, s.selPhys.w, s.selPhys.h, 0, 0, s.selPhys.w, s.selPhys.h)
-    setAnnoRects([])
-    setAnnoDraft(null)
-    setCropUrl(canvas.toDataURL('image/png'))
-    setShowSize(fitSize(canvas.width, canvas.height))
-    setPhase('annotate')
-  }, [dataUrl])
-
   const finish = useCallback(async (): Promise<void> => {
     const s = live.current
-    if (s.cropUrl === null) return
-    const image = await loadImage(s.cropUrl)
+    if (s.sel === null || s.sel.w < 2 || s.sel.h < 2) return
+    const image = await loadImage(dataUrl)
     const canvas = document.createElement('canvas')
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
+    canvas.width = Math.round(s.sel.w)
+    canvas.height = Math.round(s.sel.h)
     const ctx = canvas.getContext('2d')!
-    ctx.drawImage(image, 0, 0)
+    ctx.drawImage(image, s.sel.x, s.sel.y, s.sel.w, s.sel.h, 0, 0, canvas.width, canvas.height)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, canvas.width, canvas.height)
+    ctx.clip()
     ctx.strokeStyle = '#FF3B30'
     ctx.lineWidth = 3
     ctx.fillStyle = 'rgba(255, 59, 48, .12)'
     for (const r of s.annoRects) {
-      ctx.strokeRect(r.x, r.y, r.w, r.h)
-      ctx.fillRect(r.x, r.y, r.w, r.h)
+      const x = r.x - s.sel.x
+      const y = r.y - s.sel.y
+      ctx.strokeRect(x, y, r.w, r.h)
+      ctx.fillRect(x, y, r.w, r.h)
     }
+    ctx.restore()
     onDone(canvas.toDataURL('image/png'))
-  }, [onDone])
+  }, [dataUrl, width, height, onDone])
+
+  const backToSelect = useCallback((): void => {
+    setPhase('select')
+    setSel(null)
+    setAnnoRects([])
+    setAnnoDraft(null)
+    setUndoStack([])
+  }, [])
 
   const cancelOrBack = useCallback((): void => {
     const s = live.current
-    if (s.phase === 'annotate') {
+    if (s.phase === 'tool') {
       if (s.annoDraft !== null) setAnnoDraft(null)
       else if (s.annoRects.length > 0) setAnnoRects(s.annoRects.slice(0, -1))
-      else {
-        setPhase('select')
-        setCropUrl(null)
-        setAnnoRects([])
-        setAnnoDraft(null)
-        setSelPhys(null)
-        setShowSize(null)
-      }
+      else backToSelect()
       return
     }
     onCancel()
-  }, [onCancel])
+  }, [backToSelect, onCancel])
+
+  const enterTool = useCallback((): void => {
+    setPhase('tool')
+    setAnnoRects([])
+    setAnnoDraft(null)
+    setUndoStack([])
+  }, [])
 
   // ---- 全局事件（挂载时绑定一次） ----
   useEffect(() => {
@@ -171,57 +184,62 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       }
       if (event.button !== 0) return
       const s = live.current
-      if (s.phase === 'annotate') {
+      if (s.phase === 'tool') {
         const p = toPhys(event.clientX, event.clientY)
         if (p === null) return
+        annoStart.current = p
         setAnnoDraft({ x: p.x, y: p.y, w: 0, h: 0 })
-        annoOrigin.current = p
         return
       }
-      setDragStart({ x: event.clientX, y: event.clientY })
-      setSelPhys(null)
+      const p = toPhys(event.clientX, event.clientY)
+      dragStart.current = { phys: p, moved: false }
     }
     const onMouseMove = (event: MouseEvent): void => {
       const s = live.current
-      if (s.phase === 'annotate') {
-        if (s.annoDraft !== null) {
+      if (s.phase === 'tool') {
+        if (s.annoDraft !== null && annoStart.current !== null) {
           const p = toPhys(event.clientX, event.clientY)
-          if (p === null || annoOrigin.current === null) return
-          setAnnoDraft(norm(annoOrigin.current.x, annoOrigin.current.y, p.x, p.y))
+          if (p === null) return
+          setAnnoDraft(norm(annoStart.current.x, annoStart.current.y, p.x, p.y))
         }
         return
       }
-      if (s.dragStart !== null) {
+      const drag = dragStart.current
+      if (drag !== null && drag.phys !== null) {
         const p = toPhys(event.clientX, event.clientY)
         if (p === null) return
-        const origin = toPhys(s.dragStart.x, s.dragStart.y)
-        if (origin === null) return
-        setSelPhys(norm(origin.x, origin.y, p.x, p.y))
+        if (!drag.moved && Math.hypot(p.x - drag.phys.x, p.y - drag.phys.y) > 4) {
+          drag.moved = true
+          setSel(null)
+        }
+        if (drag.moved) setSel(norm(drag.phys.x, drag.phys.y, p.x, p.y))
       }
     }
     const onMouseUp = (): void => {
+      const drag = dragStart.current
       const s = live.current
-      if (s.phase === 'annotate') {
-        if (s.annoDraft !== null && s.annoDraft.w >= 4 && s.annoDraft.h >= 4) {
+      if (s.phase === 'tool') {
+        if (s.annoDraft !== null && s.annoDraft.w >= 3 && s.annoDraft.h >= 3) {
+          setUndoStack(prev => [...prev, JSON.stringify(s.annoRects)])
           setAnnoRects([...s.annoRects, s.annoDraft])
         }
         setAnnoDraft(null)
-        annoOrigin.current = null
+        annoStart.current = null
         return
       }
-      if (s.selPhys !== null && s.selPhys.w < 4 && s.selPhys.h < 4) setSelPhys(null)
-      setDragStart(null)
+      if (drag === null) return
+      const justDragged = drag.moved
+      dragStart.current = null
+      if (justDragged && s.sel !== null && s.sel.w >= 4 && s.sel.h >= 4) enterTool()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') cancelOrBack()
-      else if (event.key === 'Enter') {
-        if (live.current.phase === 'annotate') void finish().catch(() => {})
-        else void cropAndEnterAnnotate().catch(() => {})
-      }
+      else if (event.key === 'Enter' && live.current.phase === 'tool') void finish().catch(() => {})
     }
     const onDblClick = (): void => {
-      if (live.current.phase === 'annotate') void finish().catch(() => {})
-      else void cropAndEnterAnnotate().catch(() => {})
+      const s = live.current
+      if (s.phase === 'tool') void finish().catch(() => {})
+      else if (s.sel !== null && s.sel.w >= 4 && s.sel.h >= 4) enterTool()
     }
     const onContextMenu = (event: Event): void => event.preventDefault()
 
@@ -239,41 +257,31 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       document.removeEventListener('contextmenu', onContextMenu)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [cancelOrBack, cropAndEnterAnnotate, finish, toPhys])
+  }, [cancelOrBack, enterTool, finish, toPhys])
 
-  // ---- 帧尺寸计算（首次渲染后测量 image 或裁剪图） ----
+  // ---- 帧显示尺寸（首次渲染后测量） ----
   useEffect(() => {
     let cancelled = false
-    if (phase === 'select') {
-      void loadImage(dataUrl).then((image) => {
-        if (!cancelled) setShowSize(fitSize(image.naturalWidth, image.naturalHeight))
-      }).catch(() => {})
-    } else if (phase === 'annotate' && cropUrl !== null) {
-      void loadImage(cropUrl).then((image) => {
-        if (!cancelled) setShowSize(fitSize(image.naturalWidth, image.naturalHeight))
-      }).catch(() => {})
-    }
+    void loadImage(dataUrl).then((image) => {
+      if (!cancelled) setShowSize(fitSize(image.naturalWidth, image.naturalHeight))
+    }).catch(() => {})
     return () => { cancelled = true }
-  }, [phase, cropUrl, dataUrl])
+  }, [dataUrl])
 
-  // ---- annotate 红框 canvas 重绘 ----
+  // ---- 红框 canvas 重绘（tool 阶段） ----
   useEffect(() => {
-    const canvas = annoCanvasRef.current
-    if (canvas === null || phase !== 'annotate' || showSize === null) return
+    const canvas = annoRef.current
+    if (canvas === null || phase !== 'tool' || showSize === null) return
     const ctx = canvas.getContext('2d')!
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    const scaleX = showSize.w / width
-    const scaleY = showSize.h / height
+    const sx = showSize.w / width
+    const sy = showSize.h / height
     const draw = (r: Rect): void => {
-      const x = r.x * scaleX
-      const y = r.y * scaleY
-      const w = r.w * scaleX
-      const h = r.h * scaleY
       ctx.strokeStyle = '#FF5B4D'
       ctx.lineWidth = 2.5
-      ctx.strokeRect(x, y, w, h)
+      ctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy)
       ctx.fillStyle = 'rgba(255, 91, 77, .12)'
-      ctx.fillRect(x, y, w, h)
+      ctx.fillRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy)
     }
     for (const r of annoRects) draw(r)
     if (annoDraft !== null) draw(annoDraft)
@@ -284,41 +292,52 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   }
 
   const s = live.current
-  const scaleX = showSize.w / width
-  const scaleY = showSize.h / height
-  const selDisplay = s.selPhys === null ? null : {
-    x: s.selPhys.x * scaleX,
-    y: s.selPhys.y * scaleY,
-    w: s.selPhys.w * scaleX,
-    h: s.selPhys.h * scaleY,
+  const sx = showSize.w / width
+  const sy = showSize.h / height
+  const selDisplay = s.sel === null ? null : {
+    x: s.sel.x * sx, y: s.sel.y * sy, w: s.sel.w * sx, h: s.sel.h * sy,
   }
-
-  const tip = phase === 'select'
-    ? createElement('div', { className: 'ssd3ov-tip' },
-        createElement('em', null, '拖拽 '), '选择截图区域 · ',
-        createElement('em', null, '双击 / 回车 '), '确认 · ',
-        createElement('em', null, '右键'), ' 取消')
-    : createElement('div', { className: 'ssd3ov-tip' },
-        '拖拽画', createElement('em', { className: 'red' }, '红框 '), '强调 · ',
-        createElement('em', null, '回车 '), '完成 · ',
-        createElement('em', null, '右键'), ' 撤销框 / 重选')
-
-  const panel = phase === 'annotate'
-    ? createElement('div', { className: 'ssd3ov-panel' }, [
+  const toolbar = selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
+    ? createElement('div', {
+        key: 'toolbar', className: 'ssd3ov-toolbar',
+        style: {
+          display: 'flex',
+          left: Math.max(4, selDisplay.x + selDisplay.w / 2 - 96),
+          top: selDisplay.y + selDisplay.h + 8 <= showSize.h - 48
+            ? selDisplay.y + selDisplay.h + 8
+            : Math.max(4, selDisplay.y - 48),
+        },
+      }, [
+        createElement('button', { key: 'box', type: 'button', className: 'ssd3ov-tool', title: '红框工具' }, icon(ICON_BOX, '#FF5B4D')),
+        createElement('div', { key: 'sep', className: 'ssd3ov-sep' }),
         createElement('button', {
-          key: 'undo', type: 'button', className: 'ssd3ov-btn',
-          onClick: () => setAnnoRects(annoRects.slice(0, -1)),
-        }, '撤销'),
+          key: 'undo', type: 'button', className: 'ssd3ov-tool', title: '撤销红框',
+          onClick: () => {
+            if (s.annoRects.length > 0) {
+              setUndoStack(prev => [...prev, JSON.stringify(s.annoRects.slice(0, -1))])
+              setAnnoRects(s.annoRects.slice(0, -1))
+            }
+          },
+        }, icon(ICON_UNDO, 'none')),
         createElement('button', {
-          key: 'redo', type: 'button', className: 'ssd3ov-btn',
-          onClick: cancelOrBack,
-        }, '重选'),
+          key: 'reselect', type: 'button', className: 'ssd3ov-tool', title: '重选区域',
+          onClick: backToSelect,
+        }, icon(ICON_REDO_SEL, 'none')),
         createElement('button', {
-          key: 'done', type: 'button', className: 'ssd3ov-btn ssd3ov-btn-done',
+          key: 'done', type: 'button', className: 'ssd3ov-done',
           onClick: () => { void finish().catch(() => {}) },
         }, '完成'),
       ])
     : null
+
+  const tip = s.phase === 'select'
+    ? createElement('div', { className: 'ssd3ov-tip' },
+        createElement('em', null, '拖拽 '), '选择截图区域 · ',
+        createElement('em', null, '右键'), ' 取消')
+    : createElement('div', { className: 'ssd3ov-tip' },
+        '拖拽画', createElement('em', { className: 'red' }, '红框 '), '强调 · ',
+        createElement('em', null, '回车'), ' 完成 · ',
+        createElement('em', null, '右键'), ' 逐级回退')
 
   return createPortal(
     createElement('div', { className: 'ssd3ov' }, [
@@ -328,14 +347,11 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       }, [
         createElement('img', {
           key: 'frame', className: 'ssd3ov-frame',
-          src: phase === 'select' ? dataUrl : (cropUrl ?? undefined),
+          src: dataUrl, alt: '',
           style: { width: showSize.w, height: showSize.h },
-          alt: '',
         }),
-        phase === 'select'
-          ? createElement('div', { key: 'dim', className: 'ssd3ov-dim' })
-          : null,
-        phase === 'select' && selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
+        s.phase === 'select' ? createElement('div', { key: 'dim', className: 'ssd3ov-dim' }) : null,
+        selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
           ? createElement('div', {
               key: 'sel', className: 'ssd3ov-sel',
               style: {
@@ -345,23 +361,20 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
               },
             })
           : null,
-        phase === 'select' && selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
+        selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
           ? createElement('div', {
               key: 'size', className: 'ssd3ov-size',
               style: { display: 'block' },
-            }, `${Math.round(s.selPhys!.w)} × ${Math.round(s.selPhys!.h)}`)
+            }, `${Math.round(s.sel!.w)} × ${Math.round(s.sel!.h)}`)
           : null,
-        phase === 'annotate'
-          ? createElement('canvas', {
-              key: 'anno', ref: annoCanvasRef,
-              width: showSize.w, height: showSize.h,
-              className: 'ssd3ov-anno',
-              style: { position: 'absolute', inset: 0, pointerEvents: 'none' },
-            })
-          : null,
+        createElement('canvas', {
+          key: 'anno', ref: annoRef,
+          width: showSize.w, height: showSize.h,
+          style: { position: 'absolute', inset: 0, pointerEvents: 'none' },
+        }),
+        toolbar,
       ]),
       tip,
-      panel,
     ]),
     document.body,
   )
