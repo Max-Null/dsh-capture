@@ -24,6 +24,9 @@ export interface CaptureOverlayProps {
 
 interface Point { x: number, y: number }
 interface Rect { x: number, y: number, w: number, h: number }
+/** 标注框（物理坐标 + 形状）。 */
+type AnnoKind = 'rect' | 'ellipse'
+interface AnnoRect extends Rect { kind: AnnoKind }
 
 const CSS = [
   '.ssd3ov{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.98);display:flex;align-items:center;justify-content:center;cursor:crosshair;user-select:none}',
@@ -41,6 +44,8 @@ const CSS = [
   '.ssd3ov-toolbar{position:absolute;display:none;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(26,32,42,.94);box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:2}',
   '.ssd3ov-tool{display:grid;place-items:center;width:30px;height:30px;border:none;border-radius:7px;background:transparent;color:#C7D3E3;cursor:pointer}',
   '.ssd3ov-tool:hover{background:rgba(255,255,255,.12);color:#fff}',
+  '.ssd3ov-tool-active{background:#2E6BE6;color:#fff}',
+  '.ssd3ov-tool-active:hover{background:#2E6BE6;color:#fff}',
   '.ssd3ov-sep{width:1px;height:20px;background:rgba(255,255,255,.18)}',
   '.ssd3ov-done{padding:5px 16px;border:none;border-radius:14px;background:#2E6BE6;color:#fff;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;cursor:pointer}',
   '.ssd3ov-done:hover{background:#3B78F5}',
@@ -120,12 +125,12 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   const [phase, setPhase] = useState<'select' | 'tool'>('select')
   const [showSize, setShowSize] = useState<{ w: number, h: number } | null>(null)
   const [sel, setSel] = useState<Rect | null>(null)
-  const [annoRects, setAnnoRects] = useState<Rect[]>([])
-  const [annoDraft, setAnnoDraft] = useState<Rect | null>(null)
-  const [undoStack, setUndoStack] = useState<string[]>([])
+  const [annoRects, setAnnoRects] = useState<AnnoRect[]>([])
+  const [annoDraft, setAnnoDraft] = useState<AnnoRect | null>(null)
+  const [toolKind, setToolKind] = useState<AnnoKind>('rect')
 
-  const live = useRef({ phase, sel, annoRects, annoDraft, showSize })
-  live.current = { phase, sel, annoRects, annoDraft, showSize }
+  const live = useRef({ phase, sel, annoRects, annoDraft, showSize, toolKind })
+  live.current = { phase, sel, annoRects, annoDraft, showSize, toolKind }
   const dragStart = useRef<{ phys: Point | null, moved: boolean } | null>(null)
   const annoStart = useRef<Point | null>(null)
 
@@ -159,8 +164,15 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     for (const r of s.annoRects) {
       const x = r.x - s.sel.x
       const y = r.y - s.sel.y
-      ctx.strokeRect(x, y, r.w, r.h)
-      ctx.fillRect(x, y, r.w, r.h)
+      if (r.kind === 'ellipse') {
+        ctx.beginPath()
+        ctx.ellipse(x + r.w / 2, y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.fill()
+      } else {
+        ctx.strokeRect(x, y, r.w, r.h)
+        ctx.fillRect(x, y, r.w, r.h)
+      }
     }
     ctx.restore()
     onDone(canvas.toDataURL('image/png'))
@@ -171,7 +183,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     setSel(null)
     setAnnoRects([])
     setAnnoDraft(null)
-    setUndoStack([])
+    setToolKind('rect')
   }, [])
 
   const cancelOrBack = useCallback((): void => {
@@ -189,7 +201,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     setPhase('tool')
     setAnnoRects([])
     setAnnoDraft(null)
-    setUndoStack([])
+    setToolKind('rect')
   }, [])
 
   // ---- 全局事件（挂载时绑定一次） ----
@@ -206,7 +218,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         const p = toPhys(event.clientX, event.clientY)
         if (p === null) return
         annoStart.current = clampPoint(p, s.sel)
-        setAnnoDraft({ x: annoStart.current.x, y: annoStart.current.y, w: 0, h: 0 })
+        setAnnoDraft({ x: annoStart.current.x, y: annoStart.current.y, w: 0, h: 0, kind: s.toolKind })
         return
       }
       const p = toPhys(event.clientX, event.clientY)
@@ -218,8 +230,9 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         if (s.annoDraft !== null && annoStart.current !== null) {
           const p = toPhys(event.clientX, event.clientY)
           if (p === null) return
-          // 拖拽中的红框永远与蓝框取交集（不允许超出选区；无交集则不显示）。
-          setAnnoDraft(clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel))
+          // 拖拽中的标注框永远与蓝框取交集（不允许超出选区；无交集则不显示）。
+          const clipped = clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel)
+          setAnnoDraft(clipped === null ? null : { ...clipped, kind: s.toolKind })
         }
         return
       }
@@ -239,7 +252,6 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       const s = live.current
       if (s.phase === 'tool') {
         if (s.annoDraft !== null && s.annoDraft.w >= 3 && s.annoDraft.h >= 3) {
-          setUndoStack(prev => [...prev, JSON.stringify(s.annoRects)])
           setAnnoRects([...s.annoRects, s.annoDraft])
         }
         setAnnoDraft(null)
@@ -295,12 +307,23 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     const sx = showSize.w / width
     const sy = showSize.h / height
-    const draw = (r: Rect): void => {
-      ctx.strokeStyle = '#FF5B4D'
-      ctx.lineWidth = 2.5
-      ctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy)
-      ctx.fillStyle = 'rgba(255, 91, 77, .12)'
-      ctx.fillRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy)
+    ctx.strokeStyle = '#FF5B4D'
+    ctx.fillStyle = 'rgba(255, 91, 77, .12)'
+    ctx.lineWidth = 2.5
+    const draw = (r: AnnoRect): void => {
+      const x = r.x * sx
+      const y = r.y * sy
+      const w = r.w * sx
+      const h = r.h * sy
+      if (r.kind === 'ellipse') {
+        ctx.beginPath()
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.fill()
+        return
+      }
+      ctx.strokeRect(x, y, w, h)
+      ctx.fillRect(x, y, w, h)
     }
     for (const r of annoRects) draw(r)
     if (annoDraft !== null) draw(annoDraft)
@@ -327,15 +350,21 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
             : Math.max(4, selDisplay.y - 48),
         },
       }, [
-        createElement('button', { key: 'box', type: 'button', className: 'ssd3ov-tool', title: '红框工具' }, icon(ICON_BOX, '#FF5B4D')),
+        createElement('button', {
+          key: 'box', type: 'button', className: `ssd3ov-tool${toolKind === 'rect' ? ' ssd3ov-tool-active' : ''}`, title: '矩形框',
+          onClick: () => setToolKind('rect'),
+        }, icon(ICON_BOX, '#FF5B4D')),
+        createElement('button', {
+          key: 'ellipse', type: 'button', className: `ssd3ov-tool${toolKind === 'ellipse' ? ' ssd3ov-tool-active' : ''}`, title: '椭圆框',
+          onClick: () => setToolKind('ellipse'),
+        }, createElement('svg', {
+          viewBox: '0 0 16 16', width: '15', height: '15', fill: 'none', 'aria-hidden': true,
+        }, createElement('circle', { cx: '8', cy: '8', r: '5.6', stroke: '#FF5B4D', strokeWidth: '1.8' }))),
         createElement('div', { key: 'sep', className: 'ssd3ov-sep' }),
         createElement('button', {
-          key: 'undo', type: 'button', className: 'ssd3ov-tool', title: '撤销红框',
+          key: 'undo', type: 'button', className: 'ssd3ov-tool', title: '撤销（上一标注）',
           onClick: () => {
-            if (s.annoRects.length > 0) {
-              setUndoStack(prev => [...prev, JSON.stringify(s.annoRects.slice(0, -1))])
-              setAnnoRects(s.annoRects.slice(0, -1))
-            }
+            if (s.annoRects.length > 0) setAnnoRects(s.annoRects.slice(0, -1))
           },
         }, icon(ICON_UNDO, 'none')),
         createElement('button', {
@@ -354,7 +383,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         createElement('em', null, '拖拽 '), '选择截图区域 · ',
         createElement('em', null, '右键'), ' 取消')
     : createElement('div', { className: 'ssd3ov-tip' },
-        '拖拽画', createElement('em', { className: 'red' }, '红框 '), '强调 · ',
+        '拖拽画', createElement('em', { className: 'red' }, '标注框 '), '强调 · ',
         createElement('em', null, '回车'), ' 完成 · ',
         createElement('em', null, '右键'), ' 逐级回退')
 
