@@ -59,6 +59,24 @@ function norm(x1: number, y1: number, x2: number, y2: number): Rect {
   return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) }
 }
 
+/** 红框与选区的交集（无交集返回 null——红框不允许超出蓝框选区）。 */
+function clampToSel(r: Rect, sel: Rect): Rect | null {
+  const x1 = Math.max(r.x, sel.x)
+  const y1 = Math.max(r.y, sel.y)
+  const x2 = Math.min(r.x + r.w, sel.x + sel.w)
+  const y2 = Math.min(r.y + r.h, sel.y + sel.h)
+  if (x2 <= x1 || y2 <= y1) return null
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+}
+
+/** 把点吸附进选区（画框起点在选区外时贴到就近边界）。 */
+function clampPoint(p: Point, sel: Rect): Point {
+  return {
+    x: Math.min(Math.max(p.x, sel.x), sel.x + sel.w),
+    y: Math.min(Math.max(p.y, sel.y), sel.y + sel.h),
+  }
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -184,11 +202,11 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       }
       if (event.button !== 0) return
       const s = live.current
-      if (s.phase === 'tool') {
+      if (s.phase === 'tool' && s.sel !== null) {
         const p = toPhys(event.clientX, event.clientY)
         if (p === null) return
-        annoStart.current = p
-        setAnnoDraft({ x: p.x, y: p.y, w: 0, h: 0 })
+        annoStart.current = clampPoint(p, s.sel)
+        setAnnoDraft({ x: annoStart.current.x, y: annoStart.current.y, w: 0, h: 0 })
         return
       }
       const p = toPhys(event.clientX, event.clientY)
@@ -196,11 +214,12 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     }
     const onMouseMove = (event: MouseEvent): void => {
       const s = live.current
-      if (s.phase === 'tool') {
+      if (s.phase === 'tool' && s.sel !== null) {
         if (s.annoDraft !== null && annoStart.current !== null) {
           const p = toPhys(event.clientX, event.clientY)
           if (p === null) return
-          setAnnoDraft(norm(annoStart.current.x, annoStart.current.y, p.x, p.y))
+          // 拖拽中的红框永远与蓝框取交集（不允许超出选区；无交集则不显示）。
+          setAnnoDraft(clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel))
         }
         return
       }
