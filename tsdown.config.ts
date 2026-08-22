@@ -1,5 +1,5 @@
 /**
- * tsdown build for @max-null/dsh-ssid-screenshot: the host-half lib
+ * tsdown build for @max-null/dsh-capture: the host-half lib
  * (lib/index.mjs, ESM node, /ssid/api/screenshot routes) plus the browser
  * client bundle (lib/client.js, CJS closure factory registered through
  * window.__ModuleLoader__ — the same protocol dsh-ssid-panels uses). The
@@ -55,7 +55,7 @@ export default [
     plugins: [purityGate()],
     outputOptions: {
       entryFileNames: 'client.js',
-      banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify('@max-null/dsh-ssid-screenshot')}, factory: (require) => {`,
+      banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify('@max-null/dsh-capture')}, factory: (require) => {`,
       footer: 'return module.exports; } });',
       intro: 'var module = { exports: {} }; var exports = module.exports;',
       codeSplitting: false,

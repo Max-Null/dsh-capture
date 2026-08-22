@@ -46,10 +46,10 @@ const CSS = [
   '.ssd3ov-done:hover{background:#3B78F5}',
 ].join('\n')
 
-const STYLE_ID = '@max-null/dsh-ssid-screenshot/overlay.css'
+const STYLE_ID = '@max-null/dsh-capture/overlay.css'
 if (typeof document !== 'undefined' && document.querySelector(`style[data-plugin-css="${STYLE_ID}"]`) === null) {
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-ssid-screenshot'
+  tag.dataset.plugin = 'dsh-capture'
   tag.dataset.pluginCss = STYLE_ID
   tag.textContent = CSS
   document.head.appendChild(tag)

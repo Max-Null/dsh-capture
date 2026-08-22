@@ -1,5 +1,5 @@
 /**
- * @max-null/dsh-ssid-screenshot — browser half.
+ * @max-null/dsh-capture — browser half.
  *
  * 三层职责：
  *  1. 投递（壳层 → 输入框）：监听 `ssid:screenshot` CustomEvent（detail =
@@ -28,7 +28,7 @@ export const inject = ['slots']
 /** window 级安装守卫：DSH 插件热重载/重复加载时不重复注册监听。 */
 declare global {
   interface Window {
-    __dshSsidScreenshotInstalled?: boolean
+    __dshCaptureInstalled?: boolean
   }
 }
 
@@ -38,8 +38,8 @@ const SCREENSHOT_EVENT = 'ssid:screenshot'
 /** Plugin body: register the delivery listener, the composer capture button,
  *  and the two General-settings rows. */
 export function apply(ctx: ClientContext): void {
-  if (window.__dshSsidScreenshotInstalled === true) return
-  window.__dshSsidScreenshotInstalled = true
+  if (window.__dshCaptureInstalled === true) return
+  window.__dshCaptureInstalled = true
 
   window.addEventListener(SCREENSHOT_EVENT, (event) => {
     const detail = (event as CustomEvent<unknown>).detail

@@ -55,11 +55,11 @@ const CSS = [
   '@keyframes ssd3-fade{from{opacity:0;transform:translate(-50%,4px)}to{opacity:1;transform:translate(-50%,0)}}',
 ].join('')
 
-const STYLE_ID = '@max-null/dsh-ssid-screenshot/button.css'
+const STYLE_ID = '@max-null/dsh-capture/button.css'
 if (typeof document !== 'undefined') {
   document.querySelector(`style[data-plugin-css="${STYLE_ID}"]`)?.remove()
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-ssid-screenshot'
+  tag.dataset.plugin = 'dsh-capture'
   tag.dataset.pluginCss = STYLE_ID
   tag.textContent = CSS
   document.head.appendChild(tag)

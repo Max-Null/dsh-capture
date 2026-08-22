@@ -60,10 +60,10 @@ const CSS = [
   '.ssd3r-msg[data-ok=false]{color:var(--dsw-alias-state-error-primary)}',
 ].join('')
 
-const STYLE_ID = '@max-null/dsh-ssid-screenshot/settings.css'
+const STYLE_ID = '@max-null/dsh-capture/settings.css'
 if (typeof document !== 'undefined' && document.querySelector(`style[data-plugin-css="${STYLE_ID}"]`) === null) {
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-ssid-screenshot'
+  tag.dataset.plugin = 'dsh-capture'
   tag.dataset.pluginCss = STYLE_ID
   tag.textContent = CSS
   document.head.appendChild(tag)

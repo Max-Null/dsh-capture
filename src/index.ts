@@ -1,5 +1,5 @@
 /**
- * @max-null/dsh-ssid-screenshot — host half.
+ * @max-null/dsh-capture — host half.
  *
  * 三层职责：
  *  ① `/ssid/api/screenshot/*` 路由（fence 与 dsh-ssid-panels 同款）：设置页
@@ -22,7 +22,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /** Plugin identity for cordis.yml rows. */
-export const name = '@max-null/dsh-ssid-screenshot'
+export const name = '@max-null/dsh-capture'
 
 /** Services required before mounting: the webserver routes and the web runtime's trusted hosts. */
 export const inject = ['webServer', 'webRuntime']
@@ -209,5 +209,5 @@ export function apply(ctx: Context): void {
         writeError(res, error)
       }
     },
-  }), '@max-null/dsh-ssid-screenshot: /ssid/api/screenshot routes')
+  }), '@max-null/dsh-capture: /ssid/api/screenshot routes')
 }

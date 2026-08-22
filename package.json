@@ -1,5 +1,5 @@
 {
-  "name": "@max-null/dsh-ssid-screenshot",
+  "name": "@max-null/dsh-capture",
   "version": "0.1.0",
   "description": "SSiD (思灵) quick screenshot capture: tray/hotkey → fullscreen box-select overlay → cropped image into the current conversation composer",
   "type": "module",

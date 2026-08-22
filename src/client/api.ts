@@ -1,5 +1,5 @@
 /**
- * /ssid/api/screenshot/* client API (host half: dsh-ssid-screenshot src/index.ts).
+ * /ssid/api/screenshot/* client API (host half: dsh-capture src/index.ts).
  * Wire envelope mirrors dsh-ssid-panels: { ok, value | error }.
  */
 

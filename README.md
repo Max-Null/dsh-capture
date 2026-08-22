@@ -1,6 +1,6 @@
-# @max-null/dsh-ssid-screenshot
+# @max-null/dsh-capture
 
-> 源码仓库：https://github.com/Max-Null/dsh-ssid-screenshot（npm: `@max-null/dsh-ssid-screenshot`）
+> 源码仓库：https://github.com/Max-Null/dsh-capture（npm: `@max-null/dsh-capture`）
 
 DSH 双引擎快捷截图引用：框选屏幕任意区域（支持标注红框强调），图片自动进入
 **当前会话的输入框**（作为图片附件草稿，可加文字、可删除，回车才发送）。
@@ -45,7 +45,7 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域（支持标注红框�
 ## 实现要点（维护者）
 
 - 本仓库是插件**唯一源码真身**（lib/ 为构建产物，不入库：`pnpm install && pnpm run build`）。
-  思灵（SSiD）安装包以 `shell/profile-template/vendor/dsh-ssid-screenshot`（构建产物
+  思灵（SSiD）安装包以 `shell/profile-template/vendor/dsh-capture`（构建产物
   拷贝）作为内置分发载体，本仓库之外不再维护第二份源码。
 - 壳层（engine A）在思灵仓库 `shell/main.mjs` + `shell/screenshot.html`：`desktopCapturer`
   逐屏抓帧 → 每屏一个全屏无边框置顶浮层（不侵入 DSH 页面 DOM）→ 单阶段标注
