@@ -227,10 +227,12 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     const onMouseMove = (event: MouseEvent): void => {
       const s = live.current
       if (s.phase === 'tool' && s.sel !== null) {
-        if (s.annoDraft !== null && annoStart.current !== null) {
+        if (annoStart.current !== null) {
           const p = toPhys(event.clientX, event.clientY)
           if (p === null) return
-          // 拖拽中的标注框永远与蓝框取交集（不允许超出选区；无交集则不显示）。
+          // 标注框与蓝框实时取交集。拖出选区时预览消失、拖回来立即恢复——
+          // 以「画框起点存在」为条件，不能以 annoDraft 为条件（clamp 置 null
+          // 后拖回选区就不会再出现）。
           const clipped = clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel)
           setAnnoDraft(clipped === null ? null : { ...clipped, kind: s.toolKind })
         }
