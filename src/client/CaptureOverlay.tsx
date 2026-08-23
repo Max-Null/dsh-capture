@@ -207,9 +207,10 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   // ---- 全局事件（挂载时绑定一次） ----
   useEffect(() => {
     const onMouseDown = (event: MouseEvent): void => {
+      // 右键不再承担任何操作（曾作为取消/回退入口，但在负坐标副屏上有
+      // 左键被上报为 button2 的怪异事件，2026-08-23 实测误触发取消）。
       if (event.button === 2) {
         event.preventDefault()
-        cancelOrBack()
         return
       }
       if (event.button !== 0) return
@@ -383,11 +384,11 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   const tip = s.phase === 'select'
     ? createElement('div', { className: 'ssd3ov-tip' },
         createElement('em', null, '拖拽 '), '选择截图区域 · ',
-        createElement('em', null, '右键'), ' 取消')
+        createElement('em', null, 'Esc'), ' 取消')
     : createElement('div', { className: 'ssd3ov-tip' },
         '拖拽画', createElement('em', { className: 'red' }, '标注框 '), '强调 · ',
         createElement('em', null, '回车'), ' 完成 · ',
-        createElement('em', null, '右键'), ' 逐级回退')
+        createElement('em', null, 'Esc'), ' 逐级回退')
 
   return createPortal(
     createElement('div', { className: 'ssd3ov' }, [
