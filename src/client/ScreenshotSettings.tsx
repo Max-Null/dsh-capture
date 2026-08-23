@@ -58,7 +58,7 @@ const CSS = [
   '.ssd3r-msg[data-ok=true]{color:var(--dsw-alias-state-success-primary)}',
   '.ssd3r-msg[data-ok=false]{color:var(--dsw-alias-state-error-primary)}',
   // 家族开关（dsh-ssid-panels 通知设置同款：40x22 胶囊 + 白色圆钮）。
-  '.ssd3r-switch{width:40px;height:22px;flex:none;border:none;border-radius:11px;cursor:pointer;padding:0;background:var(--dsw-alias-bg-module-platform,rgba(128,148,168,.2));transition:background .15s}',
+  '.ssd3r-switch{width:40px;height:22px;flex:none;border:none;border-radius:11px;cursor:pointer;padding:0;background:var(--dsw-alias-border-l4,rgba(0,0,0,.16));transition:background .15s}',
   '.ssd3r-switch.on{background:var(--dsw-alias-state-business-primary,#4FC3F7)}',
   '.ssd3r-switch .knob{display:block;width:16px;height:16px;border-radius:8px;background:#fff;margin-left:2px;transition:margin-left .15s}',
   '.ssd3r-switch.on .knob{margin-left:22px}',
