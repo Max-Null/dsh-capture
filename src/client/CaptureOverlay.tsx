@@ -46,6 +46,7 @@ const CSS = [
   '.ssd3ov-tool:hover{background:rgba(255,255,255,.12);color:#fff}',
   '.ssd3ov-tool-active{background:#2E6BE6;color:#fff}',
   '.ssd3ov-tool-active:hover{background:#2E6BE6;color:#fff}',
+  '.ssd3ov-tool-text{width:auto;padding:0 12px;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif}',
   '.ssd3ov-sep{width:1px;height:20px;background:rgba(255,255,255,.18)}',
   '.ssd3ov-done{padding:5px 16px;border:none;border-radius:14px;background:#2E6BE6;color:#fff;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;cursor:pointer}',
   '.ssd3ov-done:hover{background:#3B78F5}',
@@ -207,6 +208,9 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   // ---- 全局事件（挂载时绑定一次） ----
   useEffect(() => {
     const onMouseDown = (event: MouseEvent): void => {
+      // 工具条按钮上的按下不触发任何绘制/选择（点击按钮不应被误认为画框）。
+      const toolbarEl = document.querySelector('.ssd3ov-toolbar')
+      if (toolbarEl !== null && toolbarEl.contains(event.target as Node)) return
       // 右键不再承担任何操作（曾作为取消/回退入口，但在负坐标副屏上有
       // 左键被上报为 button2 的怪异事件，2026-08-23 实测误触发取消）。
       if (event.button === 2) {
@@ -371,9 +375,9 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
           },
         }, icon(ICON_UNDO, 'none')),
         createElement('button', {
-          key: 'reselect', type: 'button', className: 'ssd3ov-tool', title: '重选区域',
+          key: 'reselect', type: 'button', className: 'ssd3ov-tool ssd3ov-tool-text', title: '取消（清除标注并重新选择）',
           onClick: backToSelect,
-        }, icon(ICON_REDO_SEL, 'none')),
+        }, '取消'),
         createElement('button', {
           key: 'done', type: 'button', className: 'ssd3ov-done',
           onClick: () => { void finish().catch(() => {}) },
