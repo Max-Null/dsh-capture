@@ -201,16 +201,15 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     ctx.stroke()
   }
 
-  /** 合成文字标注：深色半透明底 + 标注色文字（浅背景/深背景都可读）。 */
+  /** 合成文字标注：标注色文字 + 细黑描边（无背景块；描边保证任意底色可读）。 */
   const drawTextAnno = (ctx: CanvasRenderingContext2D, an: Anno, ox: number, oy: number): void => {
     const x = an.x - ox
     const y = an.y - oy
     ctx.font = '16px "Microsoft YaHei UI", "PingFang SC", sans-serif'
     ctx.textBaseline = 'top'
-    const tw = ctx.measureText(an.text ?? '').width
-    const th = 20
-    ctx.fillStyle = 'rgba(0, 0, 0, .45)'
-    ctx.fillRect(x - 2, y - 2, tw + 4, th + 4)
+    ctx.lineWidth = 3
+    ctx.strokeStyle = 'rgba(0, 0, 0, .55)'
+    ctx.strokeText(an.text ?? '', x, y)
     ctx.fillStyle = an.color
     ctx.fillText(an.text ?? '', x, y)
   }
@@ -442,9 +441,9 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       if (r.kind === 'text') {
         ctx.font = '15px "Microsoft YaHei UI", "PingFang SC", sans-serif'
         ctx.textBaseline = 'top'
-        const tw = ctx.measureText(r.text ?? '').width
-        ctx.fillStyle = 'rgba(0, 0, 0, .45)'
-        ctx.fillRect(r.x * sx - 2, r.y * sy - 2, tw + 4, 21)
+        ctx.lineWidth = 3
+        ctx.strokeStyle = 'rgba(0, 0, 0, .55)'
+        ctx.strokeText(r.text ?? '', r.x * sx, r.y * sy)
         ctx.fillStyle = r.color
         ctx.fillText(r.text ?? '', r.x * sx, r.y * sy)
         return
