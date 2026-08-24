@@ -31,14 +31,15 @@ function isDuplicate(dataUrl: string): boolean {
   return false
 }
 
-/** 一次与真实图片拖拽等价的落放：PNG File 经官方 drop 通道进草稿。 */
-export async function deliverToComposer(dataUrl: string): Promise<void> {
+/** 一次与真实图片拖拽等价的落放：PNG File 经官方 drop 通道进草稿。
+ *  @param filename - 附件名（原图/编辑图区分，如 ssid-screenshot-source.png）。 */
+export async function deliverToComposer(dataUrl: string, filename = 'ssid-screenshot.png'): Promise<void> {
   if (isDuplicate(dataUrl)) {
     console.warn('[ssid-screenshot] duplicate delivery skipped')
     return
   }
   const blob = await dataUrlToBlob(dataUrl)
-  const file = new File([blob], 'ssid-screenshot.png', { type: 'image/png' })
+  const file = new File([blob], filename, { type: 'image/png' })
   const transfer = new DataTransfer()
   transfer.items.add(file)
   console.info(`[ssid-screenshot] drop ${file.size} bytes, types=${transfer.types.join(',')}`)

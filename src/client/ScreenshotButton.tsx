@@ -168,11 +168,14 @@ export function ScreenshotButton(): ReactNode {
     else beginBrowserCapture()
   }, [busy, overlay, triggerShell, beginBrowserCapture])
 
-  const overlayDone = useCallback((dataUrl: string): void => {
+  const overlayDone = useCallback((result: { source: string, annotated: string }): void => {
     setOverlay(null)
-    void deliverToComposer(dataUrl).catch((error: unknown) => {
-      console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
+    // 原图在前、编辑图在后（理解方可对照上下文；两张内容不同互不触发投递防抖）。
+    void deliverToComposer(result.source, 'ssid-screenshot-source.png')
+      .then(() => deliverToComposer(result.annotated, 'ssid-screenshot-annotated.png'))
+      .catch((error: unknown) => {
+        console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+      })
   }, [])
 
   const overlayCancel = useCallback((): void => { setOverlay(null) }, [])

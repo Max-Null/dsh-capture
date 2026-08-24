@@ -28,6 +28,30 @@ export const inject = ['slots']
 /** 事件名（与 shell/main.mjs 派发一致）。 */
 const SCREENSHOT_EVENT = 'ssid:screenshot'
 
+/** 壳层派发协议 v2：{ uid, source, annotated }。
+ *  source = 纯裁剪原图（不遮挡原始内容），annotated = 标注合成图；
+ *  uid 由主进程生成，监听侧按 uid 去重（2026-08-24）。
+ *  旧版监听器只认字符串 dataURL，收到对象会自然忽略——协议升级同时根除
+ *  历史 hmr 残留监听器造成的双发。 */
+interface ScreenshotPayload {
+  uid: string
+  source: string
+  annotated: string
+}
+
+function parseShotPayload(detail: unknown): ScreenshotPayload | null {
+  if (typeof detail !== 'object' || detail === null) return null
+  const p = detail as Record<string, unknown>
+  if (typeof p.uid !== 'string' || p.uid === '') return null
+  if (typeof p.source !== 'string' || !isImageDataUrl(p.source)) return null
+  if (typeof p.annotated !== 'string' || !isImageDataUrl(p.annotated)) return null
+  return { uid: p.uid, source: p.source, annotated: p.annotated }
+}
+
+/** 已投递 uid 集合：主进程单会话只派发一次，防御性去重；
+ *  模块级缓存防止 hmr 后重复投递。 */
+const deliveredUids = new Set<string>()
+
 /** Plugin body: register the delivery listener, the composer capture button,
  *  and the two General-settings rows. */
 export function apply(ctx: ClientContext): void {
@@ -35,12 +59,20 @@ export function apply(ctx: ClientContext): void {
   // 会再次执行 apply（2026-08-24：此前用 window 一次性守卫跳过后半段，
   // 热替换后按钮/设置行永远消失，只剩裸监听）。监听去重由 effect dispose 保证。
   const onScreenshot = (event: Event): void => {
-    const detail = (event as CustomEvent<unknown>).detail
-    if (!isImageDataUrl(detail)) return
-    console.info(`[ssid-screenshot] event received (${detail.length} chars)`)
-    void deliverToComposer(detail).catch((error) => {
-      console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
+    const payload = parseShotPayload((event as CustomEvent<unknown>).detail)
+    if (payload === null) return
+    if (deliveredUids.has(payload.uid)) {
+      console.warn(`[ssid-screenshot] duplicate uid ${payload.uid} skipped`)
+      return
+    }
+    deliveredUids.add(payload.uid)
+    console.info(`[ssid-screenshot] event received uid=${payload.uid} (source ${payload.source.length}, annotated ${payload.annotated.length})`)
+    // 原图在前、编辑图在后：帮助理解方在标注遮盖原内容时仍能对照上下文。
+    void deliverToComposer(payload.source, 'ssid-screenshot-source.png')
+      .then(() => deliverToComposer(payload.annotated, 'ssid-screenshot-annotated.png'))
+      .catch((error) => {
+        console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
+      })
   }
   ctx.effect(() => {
     window.addEventListener(SCREENSHOT_EVENT, onScreenshot)

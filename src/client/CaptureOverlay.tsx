@@ -13,13 +13,20 @@ import { createElement, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 
-/** 组件 props（width/height = getDisplayMedia track 的物理分辨率）。 */
+/** 组件 props（width/height = getDisplayMedia track 的物理分辨率）。
+ *  onDone 协议 v2：{ source, annotated } —— 原图(纯裁剪) + 编辑图(标注合成)，
+ *  帮助理解方在标注遮盖原内容时仍能对照上下文（2026-08-24 用户决定）。 */
 export interface CaptureOverlayProps {
   dataUrl: string
   width: number
   height: number
-  onDone: (dataUrl: string) => void
+  onDone: (result: { source: string, annotated: string }) => void
   onCancel: () => void
+}
+
+export interface ShotResult {
+  source: string
+  annotated: string
 }
 
 interface Point { x: number, y: number }
@@ -216,6 +223,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     canvas.height = Math.round(s.sel.h)
     const ctx = canvas.getContext('2d')!
     ctx.drawImage(image, s.sel.x, s.sel.y, s.sel.w, s.sel.h, 0, 0, canvas.width, canvas.height)
+    const source = canvas.toDataURL('image/png')
     ctx.save()
     ctx.beginPath()
     ctx.rect(0, 0, canvas.width, canvas.height)
@@ -243,7 +251,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       }
     }
     ctx.restore()
-    onDone(canvas.toDataURL('image/png'))
+    onDone({ source, annotated: canvas.toDataURL('image/png') })
   }, [dataUrl, width, height, onDone])
 
   const backToSelect = useCallback((): void => {
