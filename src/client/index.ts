@@ -25,30 +25,27 @@ import { deliverToComposer, isImageDataUrl } from './delivery'
 
 export const inject = ['slots']
 
-/** window 级安装守卫：DSH 插件热重载/重复加载时不重复注册监听。 */
-declare global {
-  interface Window {
-    __dshCaptureInstalled?: boolean
-  }
-}
-
 /** 事件名（与 shell/main.mjs 派发一致）。 */
 const SCREENSHOT_EVENT = 'ssid:screenshot'
 
 /** Plugin body: register the delivery listener, the composer capture button,
  *  and the two General-settings rows. */
 export function apply(ctx: ClientContext): void {
-  if (window.__dshCaptureInstalled === true) return
-  window.__dshCaptureInstalled = true
-
-  window.addEventListener(SCREENSHOT_EVENT, (event) => {
+  // 投递监听走 effect（组件重载/卸载时移除）——DSH 通过 client-hmr 热替换
+  // 会再次执行 apply（2026-08-24：此前用 window 一次性守卫跳过后半段，
+  // 热替换后按钮/设置行永远消失，只剩裸监听）。监听去重由 effect dispose 保证。
+  const onScreenshot = (event: Event): void => {
     const detail = (event as CustomEvent<unknown>).detail
     if (!isImageDataUrl(detail)) return
     console.info(`[ssid-screenshot] event received (${detail.length} chars)`)
     void deliverToComposer(detail).catch((error) => {
       console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
     })
-  })
+  }
+  ctx.effect(() => {
+    window.addEventListener(SCREENSHOT_EVENT, onScreenshot)
+    return () => window.removeEventListener(SCREENSHOT_EVENT, onScreenshot)
+  }, 'dsh-capture: screenshot delivery')
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right',
