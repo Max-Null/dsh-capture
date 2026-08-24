@@ -142,12 +142,15 @@ const ICON_REDO_SEL = 'M3 5.5A2.5 2.5 0 0 1 5.5 3h5A2.5 2.5 0 0 1 13 5.5v5a2.5 2
 const ICON_ARROW = 'M13.2 2.8 4.9 11.1M13.2 2.8v4.6M13.2 2.8H8.6'
 
 function icon(iconPath: string, color: string, flip = false): ReactNode {
+  // color='none' = 线条图标:currentColor 描边、不填充(按钮 color 经 CSS 提供);
+  // 否则为填充图标(color 直接作 fill)。修复:此前 none 分支把 stroke 也设成
+  // none,箭头/撤销线条图标全不可见(2026-08-25 预览编辑浮层实测)。
   return createElement('svg', {
     viewBox: '0 0 16 16', width: '15', height: '15', fill: 'none', 'aria-hidden': true,
     style: flip ? { transform: 'scaleX(-1)' } : undefined,
   }, createElement('path', {
     d: iconPath,
-    stroke: color === 'none' ? 'none' : 'currentColor',
+    stroke: color === 'none' ? 'currentColor' : 'none',
     fill: color === 'none' ? 'none' : color,
     strokeWidth: '1.4',
     strokeLinecap: 'round',

@@ -33,11 +33,24 @@ function ensureStyle(): void {
   document.head.appendChild(tag)
 }
 
-/** 正在编辑的图片（blob/dataUrl src + 自然尺寸）。 */
+/** 正在编辑的图片（blob/dataUrl src + 自然尺寸）+ 来源预览 dialog。 */
 interface EditTarget {
   src: string
   width: number
   height: number
+  dialog: HTMLElement | null
+}
+
+/** 触发官方面板关闭：点预览 dialog 内的关闭按钮（aria-label 文案稳定）。
+ *  找不到按钮时静默跳过——dialog 由 React 状态驱动,只能经它的控件关闭。 */
+function closePreviewDialog(dialog: HTMLElement | null): void {
+  if (dialog === null || !dialog.isConnected) return
+  for (const btn of Array.from(dialog.querySelectorAll('button'))) {
+    if (/^(关闭原图预览|Close original image preview)$/.test(btn.getAttribute('aria-label') ?? '')) {
+      btn.click()
+      return
+    }
+  }
 }
 
 /** 常驻注入宿主：观察预览对话框并注入编辑按钮；零视觉输出（null portal）。 */
@@ -51,13 +64,13 @@ export function ImagePreviewEditHost(): ReactNode {
 
   useEffect(() => {
     ensureStyle()
-    const openEdit = (src: string): void => {
+    const openEdit = (src: string, dialog: HTMLElement | null): void => {
       if (busyRef.current || editRef.current !== null) return
       busyRef.current = true
       const probe = new Image()
       probe.onload = () => {
         busyRef.current = false
-        setEdit({ src, width: probe.naturalWidth, height: probe.naturalHeight })
+        setEdit({ src, width: probe.naturalWidth, height: probe.naturalHeight, dialog })
       }
       probe.onerror = () => {
         busyRef.current = false
@@ -76,7 +89,7 @@ export function ImagePreviewEditHost(): ReactNode {
       btn.innerHTML = '✎'
       btn.addEventListener('click', (event) => {
         event.stopPropagation()
-        openEdit(img.src)
+        openEdit(img.src, img.closest('[role="dialog"]'))
       })
       dialog.appendChild(btn)
       return true
@@ -108,8 +121,11 @@ export function ImagePreviewEditHost(): ReactNode {
   if (edit === null) return null
 
   const onDone = (result: { source: string, annotated?: string }): void => {
+    const dialog = editRef.current?.dialog ?? null
     setEdit(null)
-    // 无标注 = 未修改：直接关闭不投递;有标注投一张编辑图（原图已在对话里）。
+    // 完成即关闭来源预览窗口(编辑流程收敛;无标注=未修改,同样关闭不投递)。
+    closePreviewDialog(dialog)
+    // 无标注 = 未修改:不投递;有标注投一张编辑图（原图已在对话里）。
     if (result.annotated === undefined) return
     void deliverToComposer(result.annotated, 'image-edit-annotated.png').catch((err: unknown) => {
       console.warn(`[ssid-screenshot] image edit delivery failed: ${err instanceof Error ? err.message : String(err)}`)
