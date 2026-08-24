@@ -14,19 +14,20 @@ import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 
 /** 组件 props（width/height = getDisplayMedia track 的物理分辨率）。
- *  onDone 协议 v2：{ source, annotated } —— 原图(纯裁剪) + 编辑图(标注合成)，
- *  帮助理解方在标注遮盖原内容时仍能对照上下文（2026-08-24 用户决定）。 */
+ *  onDone 协议 v2：{ source, annotated? } —— 原图(纯裁剪)必有；编辑图
+ *  (标注合成)仅当存在标注时携带，帮助理解方在标注遮盖原内容时仍能对照
+ *  上下文（2026-08-24 用户决定）。 */
 export interface CaptureOverlayProps {
   dataUrl: string
   width: number
   height: number
-  onDone: (result: { source: string, annotated: string }) => void
+  onDone: (result: ShotResult) => void
   onCancel: () => void
 }
 
 export interface ShotResult {
   source: string
-  annotated: string
+  annotated?: string
 }
 
 interface Point { x: number, y: number }
@@ -251,7 +252,9 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       }
     }
     ctx.restore()
-    onDone({ source, annotated: canvas.toDataURL('image/png') })
+    onDone(s.annoRects.length > 0
+      ? { source, annotated: canvas.toDataURL('image/png') }
+      : { source })
   }, [dataUrl, width, height, onDone])
 
   const backToSelect = useCallback((): void => {

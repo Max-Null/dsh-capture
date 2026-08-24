@@ -28,15 +28,15 @@ export const inject = ['slots']
 /** 事件名（与 shell/main.mjs 派发一致）。 */
 const SCREENSHOT_EVENT = 'ssid:screenshot'
 
-/** 壳层派发协议 v2：{ uid, source, annotated }。
- *  source = 纯裁剪原图（不遮挡原始内容），annotated = 标注合成图；
- *  uid 由主进程生成，监听侧按 uid 去重（2026-08-24）。
- *  旧版监听器只认字符串 dataURL，收到对象会自然忽略——协议升级同时根除
- *  历史 hmr 残留监听器造成的双发。 */
+/** 壳层派发协议 v2：{ uid, source, annotated? }。
+ *  source = 纯裁剪原图（不遮挡原始内容）；annotated 仅当浮层确已编辑时
+ *  携带（无标注不传编辑图，2026-08-24）；uid 由主进程生成，监听侧按 uid
+ *  去重。旧版监听器只认字符串 dataURL，收到对象会自然忽略——协议升级
+ *  同时根除历史 hmr 残留监听器造成的双发。 */
 interface ScreenshotPayload {
   uid: string
   source: string
-  annotated: string
+  annotated?: string
 }
 
 function parseShotPayload(detail: unknown): ScreenshotPayload | null {
@@ -44,8 +44,12 @@ function parseShotPayload(detail: unknown): ScreenshotPayload | null {
   const p = detail as Record<string, unknown>
   if (typeof p.uid !== 'string' || p.uid === '') return null
   if (typeof p.source !== 'string' || !isImageDataUrl(p.source)) return null
-  if (typeof p.annotated !== 'string' || !isImageDataUrl(p.annotated)) return null
-  return { uid: p.uid, source: p.source, annotated: p.annotated }
+  let annotated: string | undefined
+  if (p.annotated !== undefined) {
+    if (typeof p.annotated !== 'string' || !isImageDataUrl(p.annotated)) return null
+    annotated = p.annotated
+  }
+  return { uid: p.uid, source: p.source, annotated }
 }
 
 /** 已投递 uid 集合：主进程单会话只派发一次，防御性去重；
@@ -66,10 +70,15 @@ export function apply(ctx: ClientContext): void {
       return
     }
     deliveredUids.add(payload.uid)
-    console.info(`[ssid-screenshot] event received uid=${payload.uid} (source ${payload.source.length}, annotated ${payload.annotated.length})`)
-    // 原图在前、编辑图在后：帮助理解方在标注遮盖原内容时仍能对照上下文。
+    console.info(`[ssid-screenshot] event received uid=${payload.uid} (source ${payload.source.length}, annotated ${payload.annotated?.length ?? 0})`)
+    // 原图在前、编辑图在后：帮助理解方在标注遮盖原内容时仍能对照上下文；
+    // 无标注（annotated 缺省）只投原图。
+    const annotated = payload.annotated
     void deliverToComposer(payload.source, 'ssid-screenshot-source.png')
-      .then(() => deliverToComposer(payload.annotated, 'ssid-screenshot-annotated.png'))
+      .then(() => {
+        if (annotated === undefined) return undefined
+        return deliverToComposer(annotated, 'ssid-screenshot-annotated.png')
+      })
       .catch((error) => {
         console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
       })

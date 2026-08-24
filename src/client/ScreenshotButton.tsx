@@ -168,11 +168,15 @@ export function ScreenshotButton(): ReactNode {
     else beginBrowserCapture()
   }, [busy, overlay, triggerShell, beginBrowserCapture])
 
-  const overlayDone = useCallback((result: { source: string, annotated: string }): void => {
+  const overlayDone = useCallback((result: { source: string, annotated?: string }): void => {
     setOverlay(null)
-    // 原图在前、编辑图在后（理解方可对照上下文；两张内容不同互不触发投递防抖）。
+    // 原图在前、编辑图在后（理解方可对照上下文）；无标注只投原图。
+    const annotated = result.annotated
     void deliverToComposer(result.source, 'ssid-screenshot-source.png')
-      .then(() => deliverToComposer(result.annotated, 'ssid-screenshot-annotated.png'))
+      .then(() => {
+        if (annotated === undefined) return undefined
+        return deliverToComposer(annotated, 'ssid-screenshot-annotated.png')
+      })
       .catch((error: unknown) => {
         console.warn(`[ssid-screenshot] delivery failed: ${error instanceof Error ? error.message : String(error)}`)
       })
