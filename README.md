@@ -2,6 +2,9 @@
 
 > 源码仓库：https://github.com/Max-Null/dsh-capture（npm: `@max-null/dsh-capture`）
 
+本插件属于 **`@max-null/*` 插件系列**——这一系列共同构成 **[SSID（思灵 · Seek Soul in Darkness）](https://github.com/Max-Null/seek-soul-in-darkness)** 桌面体验。SSID 是整合它们的盒：`dsh-capture` · `dsh-chat-rail` · `dsh-chinese-thinking` · `dsh-draft-polish` · `dsh-guardian` · `dsh-habit` · `dsh-header-unify` · `dsh-memory` · `dsh-node-appearance` · `dsh-plugin-center` · `dsh-skill-mcp-center` · `dsh-ssid-panels` · `dsh-ssid-zh-ui`。
+This plugin belongs to the **`@max-null/*` family** — a set of plugins that together form the **[SSID (思灵 · Seek Soul in Darkness)](https://github.com/Max-Null/seek-soul-in-darkness)** desktop experience.
+
 DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/椭圆/**箭头**/**文字**，
 8 色可选）→ 图片自动进入**当前会话的输入框**（作为图片附件草稿，可加文字、
 可删除，回车才发送）。**有标注时投递「原图 + 编辑图」两张**——原图不遮挡任何
