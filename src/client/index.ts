@@ -14,6 +14,7 @@
  *     + 全局快捷键编辑，即改即存。
  */
 import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.right entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -21,6 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { ScreenshotButton } from './ScreenshotButton'
 import { ScreenshotHideRow, ScreenshotHotkeyRow } from './ScreenshotSettings'
+import { ImagePreviewEditHost } from './ImagePreviewEdit'
 import { deliverToComposer, isImageDataUrl } from './delivery'
 
 export const inject = ['slots']
@@ -87,6 +89,19 @@ export function apply(ctx: ClientContext): void {
     window.addEventListener(SCREENSHOT_EVENT, onScreenshot)
     return () => window.removeEventListener(SCREENSHOT_EVENT, onScreenshot)
   }, 'dsh-capture: screenshot delivery')
+
+  // 常驻「原图预览编辑」宿主：独立 React root（官方 ui-renderer 同款
+  // createRoot；无 slot 可挂——预览对话框是官方 body portal 部件，
+  // MutationObserver 注入编辑按钮，见 ImagePreviewEdit）。
+  const host = document.createElement('div')
+  host.dataset.dshImagePreviewEdit = '1'
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  root.render(createElement(ImagePreviewEditHost))
+  ctx.effect(() => () => {
+    root.unmount()
+    host.remove()
+  }, 'dsh-capture: image edit preview host')
 
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right',

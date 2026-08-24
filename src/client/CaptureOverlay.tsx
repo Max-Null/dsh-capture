@@ -14,13 +14,15 @@ import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 
 /** 组件 props（width/height = getDisplayMedia track 的物理分辨率）。
- *  onDone 协议 v2：{ source, annotated? } —— 原图(纯裁剪)必有；编辑图
- *  (标注合成)仅当存在标注时携带，帮助理解方在标注遮盖原内容时仍能对照
- *  上下文（2026-08-24 用户决定）。 */
+ *  immediate=true 时为「整图编辑」模式：跳过框选，整图为工作区直接标注
+ *  （原图预览编辑入口用）。onDone 协议 v2：{ source, annotated? } —— 原图
+ *  (纯裁剪)必有；编辑图(标注合成)仅当存在标注时携带，无标注时调用方应
+ *  视为「未修改」直接关闭（2026-08-24 用户决定）。 */
 export interface CaptureOverlayProps {
   dataUrl: string
   width: number
   height: number
+  immediate?: boolean
   onDone: (result: ShotResult) => void
   onCancel: () => void
 }
@@ -153,15 +155,16 @@ function icon(iconPath: string, color: string, flip = false): ReactNode {
   }))
 }
 
-/** 浏览器截图遮罩：框选 + 单阶段红框标注 + 交付。 */
+/** 浏览器截图遮罩：框选 + 单阶段红框标注 + 交付（immediate=整图编辑模式）。 */
 export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
-  const { dataUrl, width, height, onDone, onCancel } = props
+  const { dataUrl, width, height, immediate = false, onDone, onCancel } = props
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const annoRef = useRef<HTMLCanvasElement | null>(null)
 
-  const [phase, setPhase] = useState<'select' | 'tool'>('select')
+  // immediate：整图为选区，进入即 tool 阶段（原图预览「编辑」入口）。
+  const [phase, setPhase] = useState<'select' | 'tool'>(immediate ? 'tool' : 'select')
   const [showSize, setShowSize] = useState<{ w: number, h: number } | null>(null)
-  const [sel, setSel] = useState<Rect | null>(null)
+  const [sel, setSel] = useState<Rect | null>(immediate ? { x: 0, y: 0, w: width, h: height } : null)
   const [annoRects, setAnnoRects] = useState<Anno[]>([])
   const [annoDraft, setAnnoDraft] = useState<Anno | null>(null)
   const [toolKind, setToolKind] = useState<AnnoKind>('rect')
@@ -257,12 +260,17 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   }, [dataUrl, width, height, onDone])
 
   const backToSelect = useCallback((): void => {
+    // 整图编辑（immediate）没有「重新选择」概念：回退到底 = 放弃编辑退出。
+    if (immediate) {
+      onCancel()
+      return
+    }
     setPhase('select')
     setSel(null)
     setAnnoRects([])
     setAnnoDraft(null)
     setToolKind('rect')
-  }, [])
+  }, [immediate, onCancel])
 
   const cancelOrBack = useCallback((): void => {
     const s = live.current
@@ -383,6 +391,10 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       if (justDragged && s.sel !== null && s.sel.w >= 4 && s.sel.h >= 4) enterTool()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      // 文字输入框的按键由 input 自己处理（提交/取消）；这里拦下按键的本体，
+      // 否则 Enter/字符会冒泡到 window（React 合成事件 stopPropagation 不
+      // 阻断 window 原生监听——实测：文字回车立刻触发 finish，2026-08-24）。
+      if (event.target instanceof HTMLInputElement && event.target.classList.contains('ssd3ov-text-input')) return
       const editing = textEditRef.current
       if (editing !== null) {
         if (event.key === 'Escape') {
@@ -557,7 +569,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
           style: { width: showSize.w, height: showSize.h },
         }),
         s.phase === 'select' ? createElement('div', { key: 'dim', className: 'ssd3ov-dim' }) : null,
-        selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
+        !immediate && selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
           ? createElement('div', {
               key: 'sel', className: 'ssd3ov-sel',
               style: {
@@ -567,7 +579,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
               },
             })
           : null,
-        selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
+        !immediate && selDisplay !== null && selDisplay.w > 1 && selDisplay.h > 1
           ? createElement('div', {
               key: 'size', className: 'ssd3ov-size',
               style: { display: 'block' },
@@ -586,9 +598,13 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
               placeholder: '输入文字…',
               autoFocus: true,
               onChange: (e: { target: { value: string } }) => setTextEdit({ ...textEdit, value: e.target.value }),
-              onKeyDown: (e: { key: string }) => {
+              onKeyDown: (e: { key: string, stopPropagation: () => void, nativeEvent: Event }) => {
                 if (e.key === 'Enter') commitText(textEdit.value)
                 else if (e.key === 'Escape') setTextEdit(null)
+                // React 合成 stopPropagation 不阻断 window 原生监听（实测），
+                // 显式拦下原生链，避免文字回车触发 finish。
+                if (typeof e.nativeEvent.stopPropagation === 'function') e.nativeEvent.stopPropagation()
+                else e.stopPropagation()
               },
               onBlur: () => commitText(textEdit.value),
             })
