@@ -305,7 +305,10 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         if (p === null) return
         if (s.toolKind === 'text') {
           // 文字工具：单击放置锚点并开始输入（无拖拽语义）；已有输入先提交。
+          // preventDefault：mousedown 默认焦点转移会抢走输入框焦点
+          // （浮层版实测 blur → 空提交 → 输入框关闭）。
           if (textEditRef.current !== null) commitText(textEditRef.current.value)
+          event.preventDefault()
           const anchor = clampPoint(p, s.sel)
           setTextEdit({ x: anchor.x, y: anchor.y, value: '' })
           return
