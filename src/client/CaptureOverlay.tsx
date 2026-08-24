@@ -24,9 +24,30 @@ export interface CaptureOverlayProps {
 
 interface Point { x: number, y: number }
 interface Rect { x: number, y: number, w: number, h: number }
-/** 标注框（物理坐标 + 形状）。 */
-type AnnoKind = 'rect' | 'ellipse'
-interface AnnoRect extends Rect { kind: AnnoKind }
+/** 标注种类：框（矩形/椭圆）、箭头、文字。 */
+type AnnoKind = 'rect' | 'ellipse' | 'arrow' | 'text'
+/** 标注（物理坐标）。rect/ellipse：x/y 为左上、w/h 为宽高（已 norm）；
+ *  arrow：x/y 为起点、w/h 为带方向的向量（可为负 —— 保留箭头指向）；
+ *  text：x/y 为文本左上，w/h 合成时按字体测量。color 为选中色板色。 */
+interface Anno {
+  kind: AnnoKind
+  x: number
+  y: number
+  w: number
+  h: number
+  color: string
+  text?: string
+}
+
+/** 画标注色板（默认红；可见性按背景自动对比，白/黄/绿常驻）。 */
+const ANNO_COLORS = ['#FF5B4D', '#FF9F43', '#FFD93D', '#3ED598', '#4FC3F7', '#7C6BFF', '#FF5CA8', '#FFFFFF'] as const
+const COLOR_NAMES = ['红', '橙', '黄', '绿', '青', '紫', '品红', '白'] as const
+
+/** '#RRGGBB' → 'rgba(r,g,b,a)'。 */
+function hexToRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
+}
 
 const CSS = [
   '.ssd3ov{position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.98);display:flex;align-items:center;justify-content:center;cursor:crosshair;user-select:none}',
@@ -50,6 +71,11 @@ const CSS = [
   '.ssd3ov-sep{width:1px;height:20px;background:rgba(255,255,255,.18)}',
   '.ssd3ov-done{padding:5px 16px;border:none;border-radius:14px;background:#2E6BE6;color:#fff;font:13px/1.6 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;cursor:pointer}',
   '.ssd3ov-done:hover{background:#3B78F5}',
+  // 色板：圆点 + 选中描边环。
+  '.ssd3ov-swatch{width:16px;height:16px;flex:none;border:none;border-radius:50%;cursor:pointer;padding:0;box-shadow:0 0 0 2px rgba(255,255,255,0)}',
+  '.ssd3ov-swatch.on{box-shadow:0 0 0 2px rgba(255,255,255,.85)}',
+  '.ssd3ov-text-input{position:absolute;border:1px solid #4FC3F7;background:rgba(10,14,20,.82);color:#fff;font:15px/1.4 "Microsoft YaHei UI","PingFang SC","Segoe UI",sans-serif;padding:2px 6px;border-radius:4px;outline:none;min-width:40px;z-index:3}',
+  '.ssd3ov-text-input::placeholder{color:rgba(255,255,255,.45)}',
 ].join('\n')
 
 const STYLE_ID = '@max-null/dsh-capture/overlay.css'
@@ -102,6 +128,8 @@ function fitSize(w: number, h: number): { w: number, h: number } {
 const ICON_BOX = 'M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Zm1.2.8v7.4c0 .17.13.3.3.3h7.4c.17 0 .3-.13.3-.3V4.3c0-.17-.13-.3-.3-.3H3.5c-.17 0-.3.13-.3.3Z'
 const ICON_UNDO = 'M6.7 3.2 3.2 6.7l3.5 3.5M3.6 6.7h6.1a3.1 3.1 0 0 1 0 6.2H8.3'
 const ICON_REDO_SEL = 'M3 5.5A2.5 2.5 0 0 1 5.5 3h5A2.5 2.5 0 0 1 13 5.5v5a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 3 10.5v-5Z'
+/** 箭头：主线段 + 两翼（指向右上）。 */
+const ICON_ARROW = 'M13.2 2.8 4.9 11.1M13.2 2.8v4.6M13.2 2.8H8.6'
 
 function icon(iconPath: string, color: string, flip = false): ReactNode {
   return createElement('svg', {
@@ -126,12 +154,17 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
   const [phase, setPhase] = useState<'select' | 'tool'>('select')
   const [showSize, setShowSize] = useState<{ w: number, h: number } | null>(null)
   const [sel, setSel] = useState<Rect | null>(null)
-  const [annoRects, setAnnoRects] = useState<AnnoRect[]>([])
-  const [annoDraft, setAnnoDraft] = useState<AnnoRect | null>(null)
+  const [annoRects, setAnnoRects] = useState<Anno[]>([])
+  const [annoDraft, setAnnoDraft] = useState<Anno | null>(null)
   const [toolKind, setToolKind] = useState<AnnoKind>('rect')
+  const [annoColor, setAnnoColor] = useState<string>(ANNO_COLORS[0])
+  /** 文字工具进行中的输入（物理锚点 + 草稿值）；提交后并入 annoRects。 */
+  const [textEdit, setTextEdit] = useState<{ x: number, y: number, value: string } | null>(null)
+  const textEditRef = useRef(textEdit)
+  textEditRef.current = textEdit
 
-  const live = useRef({ phase, sel, annoRects, annoDraft, showSize, toolKind })
-  live.current = { phase, sel, annoRects, annoDraft, showSize, toolKind }
+  const live = useRef({ phase, sel, annoRects, annoDraft, showSize, toolKind, annoColor })
+  live.current = { phase, sel, annoRects, annoDraft, showSize, toolKind, annoColor }
   const dragStart = useRef<{ phys: Point | null, moved: boolean } | null>(null)
   const annoStart = useRef<Point | null>(null)
 
@@ -146,6 +179,34 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     }
   }, [width, height])
 
+  /** 合成箭头（含头翼）的共用绘制：坐标为画布内坐标。 */
+  const drawArrowPath = (ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number): void => {
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    const angle = Math.atan2(y2 - y1, x2 - x1)
+    const head = 12
+    ctx.moveTo(x2, y2)
+    ctx.lineTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6))
+    ctx.moveTo(x2, y2)
+    ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6))
+    ctx.stroke()
+  }
+
+  /** 合成文字标注：深色半透明底 + 标注色文字（浅背景/深背景都可读）。 */
+  const drawTextAnno = (ctx: CanvasRenderingContext2D, an: Anno, ox: number, oy: number): void => {
+    const x = an.x - ox
+    const y = an.y - oy
+    ctx.font = '16px "Microsoft YaHei UI", "PingFang SC", sans-serif'
+    ctx.textBaseline = 'top'
+    const tw = ctx.measureText(an.text ?? '').width
+    const th = 20
+    ctx.fillStyle = 'rgba(0, 0, 0, .45)'
+    ctx.fillRect(x - 2, y - 2, tw + 4, th + 4)
+    ctx.fillStyle = an.color
+    ctx.fillText(an.text ?? '', x, y)
+  }
+
   const finish = useCallback(async (): Promise<void> => {
     const s = live.current
     if (s.sel === null || s.sel.w < 2 || s.sel.h < 2) return
@@ -159,13 +220,19 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     ctx.beginPath()
     ctx.rect(0, 0, canvas.width, canvas.height)
     ctx.clip()
-    ctx.strokeStyle = '#FF3B30'
-    ctx.lineWidth = 3
-    ctx.fillStyle = 'rgba(255, 59, 48, .12)'
     for (const r of s.annoRects) {
+      ctx.strokeStyle = r.color
+      ctx.lineWidth = 3
+      ctx.fillStyle = hexToRgba(r.color, 0.12)
+      if (r.kind === 'text') {
+        drawTextAnno(ctx, r, s.sel.x, s.sel.y)
+        continue
+      }
       const x = r.x - s.sel.x
       const y = r.y - s.sel.y
-      if (r.kind === 'ellipse') {
+      if (r.kind === 'arrow') {
+        drawArrowPath(ctx, x, y, x + r.w, y + r.h)
+      } else if (r.kind === 'ellipse') {
         ctx.beginPath()
         ctx.ellipse(x + r.w / 2, y + r.h / 2, r.w / 2, r.h / 2, 0, 0, Math.PI * 2)
         ctx.stroke()
@@ -205,12 +272,26 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     setToolKind('rect')
   }, [])
 
+  /** 提交进行中的文字输入（空值丢弃锚点）；供 input/画布点击共用。 */
+  const commitText = useCallback((text: string): void => {
+    const e = textEditRef.current
+    if (e === null) return
+    const clean = text.trim()
+    if (clean !== '') {
+      const d: Anno = { kind: 'text', x: e.x, y: e.y, w: 0, h: 0, color: live.current.annoColor, text: clean }
+      setAnnoRects([...live.current.annoRects, d])
+    }
+    setTextEdit(null)
+  }, [])
+
   // ---- 全局事件（挂载时绑定一次） ----
   useEffect(() => {
     const onMouseDown = (event: MouseEvent): void => {
       // 工具条按钮上的按下不触发任何绘制/选择（点击按钮不应被误认为画框）。
       const toolbarEl = document.querySelector('.ssd3ov-toolbar')
       if (toolbarEl !== null && toolbarEl.contains(event.target as Node)) return
+      // 文字输入框内的交互交给 input 自身（提交/取消走它的键盘事件）。
+      if (event.target instanceof HTMLInputElement && event.target.classList.contains('ssd3ov-text-input')) return
       // 右键 = 逐级回退（画框中 → 撤框 → 重选 → 取消）。
       if (event.button === 2) {
         event.preventDefault()
@@ -222,8 +303,15 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       if (s.phase === 'tool' && s.sel !== null) {
         const p = toPhys(event.clientX, event.clientY)
         if (p === null) return
+        if (s.toolKind === 'text') {
+          // 文字工具：单击放置锚点并开始输入（无拖拽语义）；已有输入先提交。
+          if (textEditRef.current !== null) commitText(textEditRef.current.value)
+          const anchor = clampPoint(p, s.sel)
+          setTextEdit({ x: anchor.x, y: anchor.y, value: '' })
+          return
+        }
         annoStart.current = clampPoint(p, s.sel)
-        setAnnoDraft({ x: annoStart.current.x, y: annoStart.current.y, w: 0, h: 0, kind: s.toolKind })
+        setAnnoDraft({ x: annoStart.current.x, y: annoStart.current.y, w: 0, h: 0, kind: s.toolKind, color: s.annoColor })
         return
       }
       const p = toPhys(event.clientX, event.clientY)
@@ -235,11 +323,18 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         if (annoStart.current !== null) {
           const p = toPhys(event.clientX, event.clientY)
           if (p === null) return
-          // 标注框与蓝框实时取交集。拖出选区时预览消失、拖回来立即恢复——
-          // 以「画框起点存在」为条件，不能以 annoDraft 为条件（clamp 置 null
-          // 后拖回选区就不会再出现）。
-          const clipped = clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel)
-          setAnnoDraft(clipped === null ? null : { ...clipped, kind: s.toolKind })
+          // 箭头保留方向（首尾都 clamp 进选区）；框走交集裁剪（拖出选区消失）。
+          if (s.toolKind === 'arrow') {
+            const a = clampPoint(annoStart.current, s.sel)
+            const b = clampPoint(p, s.sel)
+            setAnnoDraft({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y, kind: 'arrow', color: s.annoColor })
+          } else {
+            // 标注框与蓝框实时取交集。拖出选区时预览消失、拖回来立即恢复——
+            // 以「画框起点存在」为条件，不能以 annoDraft 为条件（clamp 置 null
+            // 后拖回选区就不会再出现）。
+            const clipped = clampToSel(norm(annoStart.current.x, annoStart.current.y, p.x, p.y), s.sel)
+            setAnnoDraft(clipped === null ? null : { ...clipped, kind: s.toolKind, color: s.annoColor })
+          }
         }
         return
       }
@@ -258,8 +353,12 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       const drag = dragStart.current
       const s = live.current
       if (s.phase === 'tool') {
-        if (s.annoDraft !== null && s.annoDraft.w >= 3 && s.annoDraft.h >= 3) {
-          setAnnoRects([...s.annoRects, s.annoDraft])
+        if (s.annoDraft !== null) {
+          const d = s.annoDraft
+          const ok = d.kind === 'arrow'
+            ? Math.hypot(d.w, d.h) >= 8
+            : d.kind !== 'text' && d.w >= 3 && d.h >= 3
+          if (ok) setAnnoRects([...s.annoRects, d])
         }
         setAnnoDraft(null)
         annoStart.current = null
@@ -271,6 +370,14 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       if (justDragged && s.sel !== null && s.sel.w >= 4 && s.sel.h >= 4) enterTool()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      const editing = textEditRef.current
+      if (editing !== null) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          setTextEdit(null)
+        }
+        return
+      }
       if (event.key === 'Escape') cancelOrBack()
       else if (event.key === 'Enter' && live.current.phase === 'tool') void finish().catch(() => {})
     }
@@ -295,7 +402,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
       document.removeEventListener('contextmenu', onContextMenu)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [cancelOrBack, enterTool, finish, toPhys])
+  }, [cancelOrBack, commitText, enterTool, finish, toPhys])
 
   // ---- 帧显示尺寸（首次渲染后测量） ----
   useEffect(() => {
@@ -306,7 +413,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     return () => { cancelled = true }
   }, [dataUrl])
 
-  // ---- 红框 canvas 重绘（tool 阶段） ----
+  // ---- 标注 canvas 重绘（tool 阶段） ----
   useEffect(() => {
     const canvas = annoRef.current
     if (canvas === null || phase !== 'tool' || showSize === null) return
@@ -314,14 +421,28 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     const sx = showSize.w / width
     const sy = showSize.h / height
-    ctx.strokeStyle = '#FF5B4D'
-    ctx.fillStyle = 'rgba(255, 91, 77, .12)'
-    ctx.lineWidth = 2.5
-    const draw = (r: AnnoRect): void => {
+    const draw = (r: Anno): void => {
+      ctx.strokeStyle = r.color
+      ctx.fillStyle = hexToRgba(r.color, 0.12)
+      ctx.lineWidth = 2.5
+      if (r.kind === 'text') {
+        ctx.font = '15px "Microsoft YaHei UI", "PingFang SC", sans-serif'
+        ctx.textBaseline = 'top'
+        const tw = ctx.measureText(r.text ?? '').width
+        ctx.fillStyle = 'rgba(0, 0, 0, .45)'
+        ctx.fillRect(r.x * sx - 2, r.y * sy - 2, tw + 4, 21)
+        ctx.fillStyle = r.color
+        ctx.fillText(r.text ?? '', r.x * sx, r.y * sy)
+        return
+      }
       const x = r.x * sx
       const y = r.y * sy
       const w = r.w * sx
       const h = r.h * sy
+      if (r.kind === 'arrow') {
+        drawArrowPath(ctx, x, y, x + w, y + h)
+        return
+      }
       if (r.kind === 'ellipse') {
         ctx.beginPath()
         ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
@@ -351,7 +472,8 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         key: 'toolbar', className: 'ssd3ov-toolbar',
         style: {
           display: 'flex',
-          left: Math.max(4, selDisplay.x + selDisplay.w / 2 - 96),
+          left: Math.max(170, Math.min(showSize.w - 170, selDisplay.x + selDisplay.w / 2)),
+          transform: 'translateX(-50%)',
           top: selDisplay.y + selDisplay.h + 8 <= showSize.h - 48
             ? selDisplay.y + selDisplay.h + 8
             : Math.max(4, selDisplay.y - 48),
@@ -367,7 +489,23 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         }, createElement('svg', {
           viewBox: '0 0 16 16', width: '15', height: '15', fill: 'none', 'aria-hidden': true,
         }, createElement('circle', { cx: '8', cy: '8', r: '5.6', stroke: '#FF5B4D', strokeWidth: '1.8' }))),
-        createElement('div', { key: 'sep', className: 'ssd3ov-sep' }),
+        createElement('button', {
+          key: 'arrow', type: 'button', className: `ssd3ov-tool${toolKind === 'arrow' ? ' ssd3ov-tool-active' : ''}`, title: '箭头（指向要改的内容）',
+          onClick: () => setToolKind('arrow'),
+        }, icon(ICON_ARROW, 'none')),
+        createElement('button', {
+          key: 'text', type: 'button', className: `ssd3ov-tool${toolKind === 'text' ? ' ssd3ov-tool-active' : ''}`, title: '文字（点一下输入描述）',
+          onClick: () => setToolKind('text'),
+        }, 'T'),
+        createElement('div', { key: 'sep1', className: 'ssd3ov-sep' }),
+        ...ANNO_COLORS.map((color, i) => createElement('button', {
+          key: `swatch-${color}`, type: 'button',
+          className: `ssd3ov-swatch${annoColor === color ? ' on' : ''}`,
+          title: COLOR_NAMES[i],
+          style: { background: color },
+          onClick: () => setAnnoColor(color),
+        })),
+        createElement('div', { key: 'sep2', className: 'ssd3ov-sep' }),
         createElement('button', {
           key: 'undo', type: 'button', className: 'ssd3ov-tool', title: '撤销（上一标注）',
           onClick: () => {
@@ -390,7 +528,7 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
         createElement('em', null, '拖拽 '), '选择截图区域 · ',
         createElement('em', null, '右键 / Esc'), ' 取消')
     : createElement('div', { className: 'ssd3ov-tip' },
-        '拖拽画', createElement('em', { className: 'red' }, '标注框 '), '强调 · ',
+        '拖拽画', createElement('em', { className: 'red' }, '标注 '), '· ', createElement('em', null, 'T'), ' 点一下写文字 · ',
         createElement('em', null, '回车'), ' 完成 · ',
         createElement('em', null, '右键 / Esc'), ' 逐级回退')
 
@@ -427,6 +565,21 @@ export function CaptureOverlay(props: CaptureOverlayProps): ReactNode {
           width: showSize.w, height: showSize.h,
           style: { position: 'absolute', inset: 0, pointerEvents: 'none' },
         }),
+        textEdit !== null
+          ? createElement('input', {
+              key: 'text-input', className: 'ssd3ov-text-input', type: 'text',
+              style: { left: textEdit.x * sx, top: textEdit.y * sy },
+              value: textEdit.value,
+              placeholder: '输入文字…',
+              autoFocus: true,
+              onChange: (e: { target: { value: string } }) => setTextEdit({ ...textEdit, value: e.target.value }),
+              onKeyDown: (e: { key: string }) => {
+                if (e.key === 'Enter') commitText(textEdit.value)
+                else if (e.key === 'Escape') setTextEdit(null)
+              },
+              onBlur: () => commitText(textEdit.value),
+            })
+          : null,
         toolbar,
       ]),
       tip,
