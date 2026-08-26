@@ -111,8 +111,6 @@ export function ScreenshotHideRow(): ReactNode {
     return () => { cancelled = true }
   }, [t])
 
-  if (hidden) return null
-
   const toggle = useCallback((): void => {
     const next = !value
     setValue(next)
@@ -124,6 +122,8 @@ export function ScreenshotHideRow(): ReactNode {
         setMsg({ ok: false, text: t.saveFail + (error instanceof Error ? error.message : String(error)) })
       })
   }, [value, t])
+
+  if (hidden) return null
 
   return createElement(Row, {
     title: t.hideTitle,
@@ -165,8 +165,6 @@ export function ScreenshotHotkeyRow(): ReactNode {
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
-  if (hidden) return null
-
   const save = useCallback((raw: string): void => {
     window.clearTimeout(timer.current)
     const hotkey = raw.trim()
@@ -189,6 +187,8 @@ export function ScreenshotHotkeyRow(): ReactNode {
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => save(raw), 300)
   }, [save])
+
+  if (hidden) return null
 
   return createElement(Row, {
     title: t.hotkeyTitle,
