@@ -29,6 +29,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "watch": "tsdown --watch"
   },
   "license": "MIT",
@@ -49,9 +50,11 @@
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
     "cordis": "^4.0.0-rc.7",
+    "jsdom": "^30.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.11"
   }
 }
