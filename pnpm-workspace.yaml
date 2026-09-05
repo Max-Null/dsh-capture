@@ -1,4 +1,43 @@
+packages:
+  - '.'
 allowBuilds:
   esbuild: true
   koffi: true
   node-pty: true
+
+# 官方 rc.1 发布链 bug：rc.1 的多个包依赖 dsh-*@">=0.1.2 <0.2.0-0"（0.1.2-x 全 prerelease）
+# 解析无匹配——全量 pin 0.1.2-rc.1（2026-09-05，chat-rail 同款）。
+overrides:
+  '@deepseek-ai/dsh-anonymous-user-id': 0.1.2-rc.1
+  '@deepseek-ai/dsh-atomic-write': 0.1.2-rc.1
+  '@deepseek-ai/dsh-attachment': 0.1.2-rc.1
+  '@deepseek-ai/dsh-authorization': 0.1.2-rc.1
+  '@deepseek-ai/dsh-bash-local': 0.1.2-rc.1
+  '@deepseek-ai/dsh-brand': 0.1.2-rc.1
+  '@deepseek-ai/dsh-code-runtime': 0.1.2-rc.1
+  '@deepseek-ai/dsh-compaction': 0.1.2-rc.1
+  '@deepseek-ai/dsh-credentials': 0.1.2-rc.1
+  '@deepseek-ai/dsh-fs': 0.1.2-rc.1
+  '@deepseek-ai/dsh-hook-protocol': 0.1.2-rc.1
+  '@deepseek-ai/dsh-invariants': 0.1.2-rc.1
+  '@deepseek-ai/dsh-jobs': 0.1.2-rc.1
+  '@deepseek-ai/dsh-output-retention': 0.1.2-rc.1
+  '@deepseek-ai/dsh-sandbox': 0.1.2-rc.1
+  '@deepseek-ai/dsh-scope': 0.1.2-rc.1
+  '@deepseek-ai/dsh-sdk-protocol': 0.1.2-rc.1
+  '@deepseek-ai/dsh-session-persistence': 0.1.2-rc.1
+  '@deepseek-ai/dsh-session-query': 0.1.2-rc.1
+  '@deepseek-ai/dsh-session-telemetry': 0.1.2-rc.1
+  '@deepseek-ai/dsh-session-title-llm': 0.1.2-rc.1
+  '@deepseek-ai/dsh-settings': 0.1.2-rc.1
+  '@deepseek-ai/dsh-shell': 0.1.2-rc.1
+  '@deepseek-ai/dsh-spill': 0.1.2-rc.1
+  '@deepseek-ai/dsh-subagent-in-process-driver': 0.1.2-rc.1
+  '@deepseek-ai/dsh-subprocess': 0.1.2-rc.1
+  '@deepseek-ai/dsh-timeout': 0.1.2-rc.1
+  '@deepseek-ai/dsh-util-time': 0.1.2-rc.1
+  '@deepseek-ai/dsh-util-workspace-path': 0.1.2-rc.1
+  '@deepseek-ai/dsh-workflow': 0.1.2-rc.1
+  '@deepseek-ai/dsh-client-ui-primitives': 0.1.2-rc.1
+  '@deepseek-ai/dsh-client-store': 0.1.2-rc.1
+  '@deepseek-ai/dsh-client-ui-slots': 0.1.2-rc.1

@@ -10,18 +10,16 @@
  *     `dataTransfer.types.includes('Files')`，量/类型/大小限制与真实拖拽一致）。
  *  2. 截图按钮：注册 `conversation.input.right`（润色按钮同一座位），点击
  *     调 /ssid/api/screenshot/trigger 让壳层开浮层。
- *  3. 设置行：注册两个 `settings.general.item`（通用设置）：隐藏窗口开关
- *     + 全局快捷键编辑，即改即存。
+ *  3. 设置：注册「设置——插件」页卡片（settings.plugin.item）：隐藏窗口开关
+ *     + 全局快捷键编辑，即改即存（2026-09-06 由通用设置两行迁入）。
  */
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.right entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-// Type-only: pulls the settings shell's SlotMap merge (the general.item entry).
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { ScreenshotButton } from './ScreenshotButton'
-import { ScreenshotHideRow, ScreenshotHotkeyRow } from './ScreenshotSettings'
+import { ScreenshotSettingsCard } from './ScreenshotSettings'
 import { ImagePreviewEditHost } from './ImagePreviewEdit'
 import { deliverToComposer, isImageDataUrl } from './delivery'
 
@@ -109,19 +107,11 @@ export function apply(ctx: ClientContext): void {
     order: -10,
   }, ScreenshotButton))
 
-  // 设置进「通用」：两行（设置页独立入口已取消——general.item 是单设置的
-  // 加座：一行一设置，行内自绘 + 即改即存，无需独立页面）。
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'ssid-screenshot-hide',
-    order: 25,
-  }, ScreenshotHideRow))
-
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'ssid-screenshot-hotkey',
-    order: 26,
-  }, ScreenshotHotkeyRow))
+  // 设置进「设置——插件」页：一张卡片（原通用设置两行合并为卡内两行）。
+  ctx.slots.inject(('settings.plugin.item') as never, () => ctx.slots.register({
+    name: 'settings.plugin.item',
+    key: 'dsh-capture',
+  } as never, ScreenshotSettingsCard))
 }
 
-export { ScreenshotButton, ScreenshotHideRow, ScreenshotHotkeyRow }
+export { ScreenshotButton, ScreenshotSettingsCard }

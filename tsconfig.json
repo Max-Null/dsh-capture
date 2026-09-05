@@ -8,7 +8,14 @@
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM"],
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@deepseek-ai/dsh-settings": ["../dsh-chat-rail/node_modules/@deepseek-ai/dsh-settings"],
+      "@deepseek-ai/schemastery": ["../dsh-chat-rail/node_modules/@deepseek-ai/schemastery"],
+      "@deepseek-ai/cordis": ["../dsh-chat-rail/node_modules/@deepseek-ai/cordis"],
+      "@deepseek-ai/dsh-host-webserver": ["../dsh-chat-rail/node_modules/@deepseek-ai/dsh-host-webserver"],
+      "@deepseek-ai/dsh-web-app": ["../dsh-chat-rail/node_modules/@deepseek-ai/dsh-web-app"]
+    }
   },
   "include": ["src"]
 }

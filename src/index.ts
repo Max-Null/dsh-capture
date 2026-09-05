@@ -17,12 +17,23 @@ import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the family Context augmentations (webServer / webRuntime).
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-web-app'
+import type {} from '@deepseek-ai/dsh-settings'
+import z from '@deepseek-ai/schemastery'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /** Plugin identity for cordis.yml rows. */
 export const name = '@max-null/dsh-capture'
+
+/** 设置 namespace（设置——插件页卡片锚点；与 client settingsScope.bind 一致）。 */
+export const CAPTURE_NS = 'dsh-capture'
+
+/** 设置 schema（隐藏窗口 + 全局快捷键；存储仍走 screenshot.json——主进程壳层消费）。 */
+export const Config: z<{ hideWindow: boolean, hotkey: string }> = z.object({
+  hideWindow: z.boolean().default(true),
+  hotkey: z.string().default('Control+Shift+A'),
+})
 
 /** Services required before mounting: the webserver routes and the web runtime's trusted hosts. */
 export const inject = ['webServer', 'webRuntime']
@@ -210,4 +221,14 @@ export function apply(ctx: Context): void {
       }
     },
   }), '@max-null/dsh-capture: /ssid/api/screenshot routes')
+
+  // 设置（设置——插件页）：installSection 声明 namespace（served namespaces 供卡片显示）；
+  // 存储仍走 screenshot.json（主进程壳层热键消费）——setSource 挂钩写文件，onChange 空
+  // （热键重注册由现有 shell.apply 路径处理）。
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, CAPTURE_NS, Config, readConfig() as never, {
+      setSource: (next: unknown) => { writeConfig(next as { hideWindow: boolean, hotkey: string }) },
+      onChange: () => {},
+    })
+  })
 }
