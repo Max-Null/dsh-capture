@@ -1,6 +1,6 @@
 /**
  * tsdown build for @max-null/dsh-capture: the host-half lib
- * (lib/index.mjs, ESM node, /ssid/api/screenshot routes) plus the browser
+ * (lib/index.mjs, ESM node, /api/ssid/screenshot routes) plus the browser
  * client bundle (lib/client.js, CJS closure factory registered through
  * window.__ModuleLoader__ — the same protocol dsh-ssid-panels uses). The
  * client value-imports react/react-dom/cordis (platform module-table words);

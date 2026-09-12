@@ -1,6 +1,8 @@
 /**
- * /ssid/api/screenshot/* client API (host half: dsh-capture src/index.ts).
+ * /api/ssid/screenshot/* client API (host half: dsh-capture src/index.ts).
  * Wire envelope mirrors dsh-ssid-panels: { ok, value | error }.
+ * The path sits below `/api` because the shared Fetch channel owns that prefix
+ * in both the Web carrier and the Electron shell carrier.
  */
 
 /** 截图配置视图（+ 壳能力标记）。 */
@@ -18,7 +20,7 @@ export interface ScreenshotConfigSaved extends ScreenshotConfigView {
 
 /** POST one method and unwrap the envelope. */
 async function api<T>(method: string, payload?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`/ssid/api/screenshot/${method}`, {
+  const res = await fetch(`/api/ssid/screenshot/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload ?? {}),

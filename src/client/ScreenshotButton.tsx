@@ -2,13 +2,13 @@
  * ScreenshotButton: the composer's right-tool-seat entry (conversation.input.right
  * — the same seat as dsh-draft-polish), dual-engine:
  *
- *  - SSiD 壳内（引擎 A）：POST /ssid/api/screenshot/trigger → 壳开全屏浮层
+ *  - SSiD 壳内（引擎 A）：POST /api/ssid/screenshot/trigger → 壳开全屏浮层
  *    （多显示器、快捷键、隐藏窗口、像素级帧）。
  *  - 纯 DSH / 无壳（引擎 B）：点击手势内同步调用 navigator.mediaDevices
  *    .getDisplayMedia（系统选择器选一个屏幕）→ 抓一帧 → 页面内全屏遮罩
  *    CaptureOverlay（框选 + 红框标注）→ 官方 drop intake 投递。
  *
- * 探测（shellAvailable，来自 host 的 /ssid/api/screenshot/get）在组件挂载时
+ * 探测（shellAvailable，来自 host 的 /api/ssid/screenshot/get）在组件挂载时
  * 拉取并缓存——点击必须同步决定引擎（getDisplayMedia 要求用户手势调用栈），
  * 不能先 await 再选。
  */

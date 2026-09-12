@@ -9,7 +9,7 @@
  *     （ui-attachment 的 document 级 drop 处理器，只认
  *     `dataTransfer.types.includes('Files')`，量/类型/大小限制与真实拖拽一致）。
  *  2. 截图按钮：注册 `conversation.input.right`（润色按钮同一座位），点击
- *     调 /ssid/api/screenshot/trigger 让壳层开浮层。
+ *     调 /api/ssid/screenshot/trigger 让壳层开浮层。
  *  3. 设置：注册「设置——插件」页卡片（settings.plugin.item）：隐藏窗口开关
  *     + 全局快捷键编辑，即改即存（2026-09-06 由通用设置两行迁入）。
  */

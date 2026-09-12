@@ -2,7 +2,7 @@
  * ScreenshotSettings: two General-settings rows (settings.general.item —
  * the additive seat for a single setting that needs no page of its own).
  *
- * Rows (each fetched/saved through /ssid/api/screenshot/*):
+ * Rows (each fetched/saved through /api/ssid/screenshot/*):
  *  - screenshot-hide: 截图时是否隐藏思灵窗口（checkbox，切换即保存）
  *  - screenshot-hotkey: 全局快捷键（input，回车/失焦即保存，实时重注册）
  *

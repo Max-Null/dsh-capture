@@ -102,7 +102,8 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
 - 投递：`delivery.ts` 的合成 drop（`new DataTransfer()` + `DragEvent('drop')`）走 DSH
   官方 composer 图片 intake（ui-attachment 的 document 级 drop 处理器）。无 DSH 核心
   改动；数量/大小/类型限制与官方拖拽一致。
-- host 半 `/ssid/api/screenshot/{get,set,trigger}`（trusted-fence 同 panels）；
+- host 半 `/api/ssid/screenshot/{get,set,trigger}`（走 `ctx.connection.fetch` 的精确路由表，
+  carrier-neutral——Web 载体与 Electron shell 载体分发同一个 handler）；
   壳能力经 `ssid.shell.screenshot` 服务注入（bare dsh web 时 shellAvailable=false，
   引擎 B 接管）。
 - 浮层 3 分钟无交互自动取消（防卡屏；交互随时重置）。
