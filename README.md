@@ -28,9 +28,9 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
 
 ### 设置
 
-| 设置页 |
+| 「插件」页 → dsh-capture 详情页的配置卡片 |
 | --- |
-| ![设置页截图](docs/shots/settings-1.png) |
+| ![设置卡片截图](docs/shots/settings-1.png) |
 
 ## 双引擎
 
