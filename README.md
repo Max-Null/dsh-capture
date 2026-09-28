@@ -2,7 +2,7 @@
 
 > 源码仓库：https://github.com/Max-Null/dsh-capture（npm: `@max-null/dsh-capture`）
 
-本插件属于 **`@max-null/*` 插件系列**——这一系列共同构成 **[SSID（思灵 · Seek Soul in Darkness）](https://github.com/Max-Null/seek-soul-in-darkness)** 桌面体验。SSID 是整合它们的盒：`dsh-capture` · `dsh-chat-rail` · `dsh-chinese-thinking` · `dsh-draft-polish` · `dsh-guardian` · `dsh-habit` · `dsh-memory` · `dsh-node-appearance` · `dsh-plugin-center` · `dsh-quick-toolbar` · `dsh-skill-mcp-center` · `dsh-ssid-panels` · `dsh-ssid-zh-ui` · `dsh-achievements`。
+本插件属于 **`@max-null/*` 插件系列**——这一系列共同构成 **[SSID（思灵 · Seek Soul in Darkness）](https://github.com/Max-Null/seek-soul-in-darkness)** 桌面体验。SSID 是整合它们的盒：`dsh-capture` · `dsh-chat-rail` · `dsh-chinese-thinking` · `dsh-draft-polish` · `dsh-guardian` · `dsh-habit` · `dsh-memory` · `dsh-node-appearance` · `dsh-plugin-center` · `dsh-quick-toolbar` · `dsh-skill-mcp-center` · `dsh-ssid-panels` · `dsh-ssid-zh-ui` · `dsh-ssid-achievements`。
 This plugin belongs to the **`@max-null/*` family** — a set of plugins that together form the **[SSID (思灵 · Seek Soul in Darkness)](https://github.com/Max-Null/seek-soul-in-darkness)** desktop experience.
 
 DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/椭圆/**箭头**/**文字**，
@@ -36,10 +36,10 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
 
 | | 思灵壳（SSiD）内 | 纯 DSH（浏览器） |
 | --- | --- | --- |
-| 触发 | 托盘「截图引用」＋ 全局快捷键（设置→通用修改）＋ 输入框相机按钮 | 输入框相机按钮 |
+| 触发 | 托盘「截图引用」＋ 全局快捷键（插件页卡片修改）＋ 输入框相机按钮 | 输入框相机按钮 |
 | 捕获 | desktopCapturer 逐屏抓帧：多显示器、像素级 1:1、全屏无边框浮层 | `getDisplayMedia` 系统选择器（一次选一个屏幕） |
 | 遮蔽 | 独立浮层窗口（DSH 页面零侵入） | 页面内全屏遮罩（框选 + 标注交互相同） |
-| 隐藏窗口 | ✅（设置→通用「截图时隐藏思灵窗口」） | ❌（无此能力，设置行自动隐藏） |
+| 隐藏窗口 | ✅（插件页卡片「截图时隐藏思灵窗口」） | ❌（无此能力，设置行自动隐藏） |
 | 投递 | 官方 composer 图片 intake（合成 drop，与拖拽等价） | 同左 |
 
 运行时探测（host 的 shellAvailable）自动选择引擎；无壳时按钮点击即走浏览器捕获。
@@ -77,7 +77,7 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
 3. 标注（同截图工具）→ **完成**：编辑图投递到输入框，预览窗口随编辑一并关闭；
    未标注直接完成 = 视为未修改，关闭且不投递；取消/回退放弃编辑，预览保留。
 
-## 设置（思灵壳内：设置 → 通用）
+## 设置（思灵壳内：「插件」页 → dsh-capture 卡片）
 
 - **截图时隐藏思灵窗口**：开 = 冻结帧不含思灵自身（引用其他应用）；关 = 冻结帧包含
   思灵（可框选对话内容）。默认开。
@@ -89,7 +89,8 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
 - 本仓库是插件**唯一源码真身**（lib/ 为构建产物，不入库：`pnpm install && pnpm run build`）。
   思灵（SSiD）安装包以 `shell/profile-template/vendor/dsh-capture`（构建产物
   拷贝）作为内置分发载体，本仓库之外不再维护第二份源码。
-- 壳层（engine A）在思灵仓库 `shell/main.mjs` + `shell/screenshot.html`：`desktopCapturer`
+- 壳层（engine A）在思灵仓库 `ssid-desktop/apps/desktop/src/ssid/screenshot.ts` 与
+  `ssid-desktop/apps/desktop/resources/screenshot.html`（浮层页）：`desktopCapturer`
   逐屏抓帧 → 每屏一个全屏无边框置顶浮层（不侵入 DSH 页面 DOM）→ 单阶段标注
   （选区工具条 + 原图坐标系绘制，合成时按选区裁剪）→ `executeJavaScript`
   派发 `ssid:screenshot` CustomEvent（v2 协议 `{ uid, source, annotated? }`，
@@ -106,7 +107,7 @@ DSH 双引擎快捷截图引用：框选屏幕任意区域 → 标注（矩形/�
   carrier-neutral——Web 载体与 Electron shell 载体分发同一个 handler）；
   壳能力经 `ssid.shell.screenshot` 服务注入（bare dsh web 时 shellAvailable=false，
   引擎 B 接管）。
-- 浮层 3 分钟无交互自动取消（防卡屏；交互随时重置）。
+- 壳内浮层 3 分钟无交互自动取消（`screenshot.html` 的闲置超时；防卡屏，交互随时重置）。
 
 ## 已知边界
 

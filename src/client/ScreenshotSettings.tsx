@@ -223,9 +223,12 @@ export function ScreenshotHotkeyRow(): ReactNode {
   })
 }
 
-/** 设置——插件页卡片：截图行为（隐藏窗口开关 + 全局快捷键）——合并原两行通用设置。 */
+/** 设置——插件页卡片：截图行为（隐藏窗口开关 + 全局快捷键）——合并原两行通用设置。
+ *
+ *  默认展开：本卡是该插件在「插件」页上唯一的设置入口，折叠态会让用户以为
+ *  「设置不见了」（2026-09-26；同日并入 SSiD 插件设置规范）。折叠仍可手动收起。 */
 export function ScreenshotSettingsCard(): ReactNode {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const t = langStrings()
   return createElement('li', { className: 'ssd3Card' + (open ? ' ssd3CardOpen' : '') },
     createElement('button', {

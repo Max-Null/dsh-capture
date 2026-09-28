@@ -6,18 +6,18 @@
  *     的精确路由表，Web 载体与 Electron shell 载体都分发同一个 handler）：
  *     设置页读写 ~/.ssid/screenshot.json（hideWindow 截图时是否隐藏主窗口、
  *     hotkey 全局快捷键），客户端按钮走 trigger 触发截图。
- *  ② 经服务键 `ssid.shell.screenshot`（main.mjs 经 bootKernel opts.screenshot
- *     注入）调用壳层能力：trigger 开浮层、apply 重注册快捷键。手动 dsh web
+ *  ② 经服务键 `ssid.shell.screenshot`（由壳的 desktop-host 半 `ctx.provide`
+ *     注入，见思灵仓库 `ssid-desktop/apps/desktop-host/src/ssid-screenshot.ts`）
+ *     调用壳层能力：trigger 开浮层、apply 重注册快捷键。手动 dsh web
  *     （无 Electron 壳）时服务不存在：get 返回 shellAvailable=false，
  *     set 仅写配置文件（壳内下次启动生效），trigger 返回 503。
  *  ③ client 半完成投递：监听 `ssid:screenshot` CustomEvent → 官方 drop
  *     intake 填入当前会话输入框草稿。
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 // Type-only: pulls the connection Context augmentation (ctx.connection).
 import type {} from '@deepseek-ai/dsh-client-connection'
-import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -29,11 +29,27 @@ export const name = '@max-null/dsh-capture'
 /** 设置 namespace（设置——插件页卡片锚点；与 client settingsScope.bind 一致）。 */
 export const CAPTURE_NS = 'dsh-capture'
 
-/** 设置 schema（隐藏窗口 + 全局快捷键；存储仍走 screenshot.json——主进程壳层消费）。 */
-export const Config: z<{ hideWindow: boolean, hotkey: string }> = z.object({
-  hideWindow: z.boolean().default(true),
-  hotkey: z.string().default('Control+Shift+A'),
+/** 设置 schema（隐藏窗口 + 全局快捷键；存储仍走 screenshot.json——主进程壳层消费）。
+ *
+ *  0.1.7 起插件的 Config schema 本身就构成它的 settings section（不再有
+ *  `installSection`），**可变字段必须标 `.volatile()`**——`settings/src/schema.ts`
+ *  的 `isVolatilePath` 只承认「祖先节点标了 volatile」的路径，非 volatile 路径在
+ *  `settings/src/index.ts:406` 直接抛错；漏标则本插件的 namespace 不被 Host serve，
+ *  设置卡整区不渲染（2026-09-26 实测）。见官方范例 `web-search-deepseek/src/index.ts`
+ *  与我们的 `dsh-node-appearance`。
+ *
+ *  不写 `z<Config>` 显式泛型：`.volatile()` 会把字段的 schema Mode 变成
+ *  `'volatile-defined'`，与接口里声明的 `Volatile<T>` 不是同一个 Mode，显式泛型会报类型不匹配。 */
+export const Config = z.object({
+  hideWindow: z.boolean().default(true).volatile(),
+  hotkey: z.string().default('Control+Shift+A').volatile(),
 })
+
+/** 设置值形状（与 {@link Config} 的 schema 对齐）。 */
+export interface CaptureConfig {
+  hideWindow: Volatile<boolean>
+  hotkey: Volatile<string>
+}
 
 /**
  * Services required before mounting: the shared Fetch route registry.
@@ -45,11 +61,12 @@ export const Config: z<{ hideWindow: boolean, hotkey: string }> = z.object({
  */
 export const inject = ['connection']
 
-/** 配置文件路径（与 shell/main.mjs 的 SCREENSHOT_CONFIG_PATH 一致）。 */
+/** 配置文件路径（与壳层 `ssid-desktop/apps/desktop/src/ssid/screenshot.ts` 同源；
+ *  该处的 `SSID_SCREENSHOT_CONFIG` 可整体覆盖，供隔离实例用独立配置）。 */
 const CONFIG_PATH = join(homedir(), '.ssid', 'screenshot.json')
 const CONFIG_DEFAULTS = { hideWindow: true, hotkey: 'Control+Shift+A' }
 
-/** 服务键（与 shell/kernel.ts 的 SSID_SHELL_SCREENSHOT_KEY 一致）。 */
+/** 服务键（与壳层 `ssid-desktop/apps/desktop-host/src/ssid-screenshot.ts` 的 SSID_SHELL_SCREENSHOT_KEY 一致）。 */
 const SHELL_SCREENSHOT_KEY = 'ssid.shell.screenshot'
 
 /** 路由基址（必须在 `/api` 之下：共享通道只分发该前缀）。 */
@@ -168,13 +185,10 @@ export function apply(ctx: Context): void {
     }), `@max-null/dsh-capture: ${ROUTE_BASE}/${method}`)
   }
 
-  // 设置（设置——插件页）：installSection 声明 namespace（served namespaces 供卡片显示）；
-  // 存储仍走 screenshot.json（主进程壳层热键消费）——setSource 挂钩写文件，onChange 空
-  // （热键重注册由现有 shell.apply 路径处理）。
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, CAPTURE_NS, Config, readConfig() as never, {
-      setSource: (next: unknown) => { writeConfig(next as { hideWindow: boolean, hotkey: string }) },
-      onChange: () => {},
-    })
-  })
+  // 设置页卡片：不再经 `settings.installSection` 声明 namespace。
+  // 该方法在 DSH 0.1.7 的 Settings 服务上已不存在（现在的公开面只有
+  // configure / describe / update / replace / mutate），调用会抛 TypeError；
+  // 而且本插件的配置真身在 `~/.ssid/screenshot.json`（主进程壳层热键消费），
+  // 走 settings 表单会造成两层存储分叉——所以它本来也**不该**进设置表单。
+  // 卡片改由 client 半注册到 `plugins.bundle.config`（见 src/client/index.ts）。
 }

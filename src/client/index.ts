@@ -3,19 +3,19 @@
  *
  * 三层职责：
  *  1. 投递（壳层 → 输入框）：监听 `ssid:screenshot` CustomEvent（detail =
- *     裁剪结果 `data:image/png;base64,…`，由 shell/main.mjs 经
- *     mainView.webContents.executeJavaScript 派发），把 PNG 送进当前会话
- *     输入框草稿——合成 drop 走 DSH 官方 composer 图片 intake
+ *     裁剪结果 `data:image/png;base64,…`，由壳层
+ *     `ssid-desktop/apps/desktop/src/ssid/screenshot.ts` 直接派发），
+ *     把 PNG 送进当前会话输入框草稿——合成 drop 走 DSH 官方 composer 图片 intake
  *     （ui-attachment 的 document 级 drop 处理器，只认
  *     `dataTransfer.types.includes('Files')`，量/类型/大小限制与真实拖拽一致）。
  *  2. 截图按钮：注册 `conversation.input.right`（润色按钮同一座位），点击
  *     调 /api/ssid/screenshot/trigger 让壳层开浮层。
- *  3. 设置：注册「设置——插件」页卡片（settings.plugin.item）：隐藏窗口开关
- *     + 全局快捷键编辑，即改即存（2026-09-06 由通用设置两行迁入）。
+ *  3. 设置：注册「插件」页插件详情里的卡片（`plugins.bundle.config`，key = 包名）：
+ *     隐藏窗口开关 + 全局快捷键编辑，即改即存。
  */
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.right entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ScreenshotButton } from './ScreenshotButton'
@@ -25,7 +25,7 @@ import { deliverToComposer, isImageDataUrl } from './delivery'
 
 export const inject = ['slots']
 
-/** 事件名（与 shell/main.mjs 派发一致）。 */
+/** 事件名（与壳层 `ssid-desktop/apps/desktop/src/ssid/screenshot.ts` 派发一致）。 */
 const SCREENSHOT_EVENT = 'ssid:screenshot'
 
 /** 壳层派发协议 v2：{ uid, source, annotated? }。
@@ -107,10 +107,12 @@ export function apply(ctx: ClientContext): void {
     order: -10,
   }, ScreenshotButton))
 
-  // 设置进「设置——插件」页：一张卡片（原通用设置两行合并为卡内两行）。
-  ctx.slots.inject(('settings.plugin.item') as never, () => ctx.slots.register({
-    name: 'settings.plugin.item',
-    key: 'dsh-capture',
+  // 设置进「插件」页：挂在插件详情页的 `plugins.bundle.config`（key = 包名）。
+  // DSH 0.1.7 删除了 `settings.plugin.item`（ui-plugin-manager 的 SLOTS 里已无此项），
+  // 挂上去等于注册到未声明的槽——设置卡完全不渲染。替代者就是本槽。
+  ctx.slots.inject(('plugins.bundle.config') as never, () => ctx.slots.register({
+    name: 'plugins.bundle.config',
+    key: '@max-null/dsh-capture',
   } as never, ScreenshotSettingsCard))
 }
 
