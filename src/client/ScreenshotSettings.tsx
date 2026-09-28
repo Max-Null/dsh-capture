@@ -1,13 +1,14 @@
 /**
- * ScreenshotSettings: two General-settings rows (settings.general.item —
- * the additive seat for a single setting that needs no page of its own).
+ * ScreenshotSettings: the settings card on the plugin detail page
+ * (`plugins.bundle.config`, key = package name) — the hide-window toggle and
+ * the global-hotkey editor, saved on change.
  *
  * Rows (each fetched/saved through /api/ssid/screenshot/*):
- *  - screenshot-hide: 截图时是否隐藏思灵窗口（checkbox，切换即保存）
+ *  - screenshot-hide: 截图时是否隐藏思灵窗口（开关，切换即保存）
  *  - screenshot-hotkey: 全局快捷键（input，回车/失焦即保存，实时重注册）
  *
- * The General row contract: the section supplies no props at all — copy,
- * current value, and the write path are all the registrant's own.
+ * The card contract: the slot supplies no props at all — copy, current value,
+ * and the write path are all the registrant's own.
  */
 import { createElement, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'

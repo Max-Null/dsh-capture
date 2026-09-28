@@ -59,7 +59,7 @@ function parseShotPayload(detail: unknown): ScreenshotPayload | null {
 const deliveredUids = new Set<string>()
 
 /** Plugin body: register the delivery listener, the composer capture button,
- *  and the two General-settings rows. */
+ *  and the settings card on the plugin detail page. */
 export function apply(ctx: ClientContext): void {
   // 投递监听走 effect（组件重载/卸载时移除）——DSH 通过 client-hmr 热替换
   // 会再次执行 apply（2026-08-24：此前用 window 一次性守卫跳过后半段，
