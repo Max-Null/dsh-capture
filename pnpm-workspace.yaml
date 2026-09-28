@@ -5,6 +5,10 @@ allowBuilds:
   koffi: true
   node-pty: true
 
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/dsh-client-connection@0.2.0-rc.1'
+  - '@deepseek-ai/dsh-client-ui-renderer@0.2.0-rc.1'
+
 # 官方 rc.1 发布链 bug：rc.1 的多个包依赖 dsh-*@">=0.1.2 <0.2.0-0"（0.1.2-x 全 prerelease）
 # 解析无匹配——全量 pin 0.1.2-rc.1（2026-09-05，chat-rail 同款）。
 overrides:

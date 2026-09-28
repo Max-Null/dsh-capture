@@ -18,6 +18,8 @@ import { createRoot } from 'react-dom/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the ui-conversation SlotMap merge (the input.right entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: the ctx.slots Context merge comes from the renderer package.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { ScreenshotButton } from './ScreenshotButton'
 import { ScreenshotSettingsCard } from './ScreenshotSettings'
 import { ImagePreviewEditHost } from './ImagePreviewEdit'
