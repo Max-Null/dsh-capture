@@ -39,7 +39,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.4",
     "@deepseek-ai/dsh-client-connection": "0.2.0-rc.1",
     "@deepseek-ai/dsh-client-ui-conversation": "0.1.2-alpha.5",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.1",
